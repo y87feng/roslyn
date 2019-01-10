@@ -10,7 +10,7 @@ $VSSetupDir = Join-Path $ArtifactsDir "VSSetup\$configuration"
 $PackagesDir = Join-Path $ArtifactsDir "packages\$configuration"
 
 # Use very short directory name to avoid long path issues (build machines, ibcmerge.exe)
-$IbcOptimizationDataDir = if ($ci) { Join-Path $RepoRoot ".o" } else { "" }
+$IbcOptimizationDataDir = if ($ci) { Join-Path $RepoRoot ".o\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } else { "" }
 
 $binaryLog = if (Test-Path variable:binaryLog) { $binaryLog } else { $false }
 $nodeReuse = if (Test-Path variable:nodeReuse) { $nodeReuse } else { $false }
