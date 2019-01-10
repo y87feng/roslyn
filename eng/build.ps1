@@ -46,6 +46,7 @@ param (
     [string]$officialBuildId = "",
     [string]$vsDropName = "",
     [string]$vsBranch = "",
+    [string]$vsDropAccessToken = "",
 
     # Test actions
     [switch]$test32,
@@ -100,6 +101,7 @@ function Print-Usage() {
     Write-Host "  -officialBuildId          An official build id, e.g. 20190102.3"
     Write-Host "  -vsDropName               Visual Studio product drop name"
     Write-Host "  -vsBranch                 Visual Studio insertion branch"
+    Write-Host "  -vsDropAccessToken        Visual Studio drop access token"
     Write-Host ""
     Write-Host "Command line arguments starting with '/p:' are passed through to MSBuild."
 }
@@ -117,16 +119,27 @@ function Process-Arguments() {
        exit 0
     }
     
-    if ($officialBuildId) {
-        if (!$vsBranch) {
+    if (!$vsBranch) {
+        if ($officialBuildId) {
             Write-Host "vsBranch must be specified for official builds"
             exit 1
         }
 
-        if (!$vsDropName) {
+        $script:vsBranch = "dummy/ci"
+    }
+
+    if (!$vsDropName) {
+        if ($officialBuildId) {
             Write-Host "vsDropName must be specified for official builds"
             exit 1
         }
+
+        $script:vsDropName = "Products/DummyDrop"
+    }
+
+    if (!$vsDropAccessToken -and $officialBuildId) {
+        Write-Host "vsDropAccessToken must be specified for official builds"
+        exit 1
     }
     
     if ($test32 -and $test64) {
@@ -202,11 +215,67 @@ function BuildSolution() {
         /p:QuietRestoreBinaryLog=$binaryLog `
         /p:TestTargetFrameworks=$testTargetFrameworks `
         /p:VisualStudioDropName=$vsDropName `
+        /p:IbcOptimizationDataDir=$IbcOptimizationDataDir `
         /p:TreatWarningsAsErrors=true `
         $suppressExtensionDeployment `
         @properties
 }
 
+function Restore-OptProfData() {
+    $dropToolDir = Get-PackageDir "Drop.App"
+    $dropToolPath = Join-Path $dropToolDir "lib\net45\drop.exe"
+
+    if (!(Test-Path $dropToolPath)) {
+
+        # Only report error when running in an official build.
+        # Allows to test optimization data operations locally by running 
+        # cibuild.cmd after manually restoring internal tools project.
+        if (!$officialBuildId) {
+            return
+        }
+
+        Write-Host "Internal tool not found: '$dropToolPath'." -ForegroundColor Red 
+        Write-Host "Run nuget restore `"$EngRoot\internal\Toolset.csproj`"." -ForegroundColor DarkGray 
+        ExitWithExitCode 1
+    }
+    
+    function find-latest-drop($drops) {
+         $result = $null
+         [DateTime]$latest = [DateTime]::New(0)
+         foreach ($drop in $drops) {
+             $dt = [DateTime]::Parse($drop.CreatedDateUtc)
+             if ($result -eq $null -or ($drop.UploadComplete -and !$drop.DeletePending -and ($dt -gt $latest))) {
+                 $result = $drop
+                 $latest = $dt
+             }
+         }
+
+         return $result
+    }
+   
+    Write-Host "Acquiring optimization data"
+
+    Create-Directory $IbcOptimizationDataDir
+
+    $dropServiceUrl = "https://devdiv.artifacts.visualstudio.com"
+    $dropNamePrefix = "OptimizationData/dotnet/roslyn/master-vs-deps"
+    $patAuth = if ($officialBuildId) { "--patAuth `"$vsDropAccessToken`"" } else { "" }
+
+    $dropsJsonPath = Join-Path $IbcOptimizationDataDir "AvailableDrops.json"
+    $logFile = Join-Path $LogDir "OptimizationDataAcquisition.log"
+
+    Exec-Console $dropToolPath "list --dropservice `"$dropServiceUrl`" $patAuth --pathPrefixFilter `"$dropNamePrefix`" --toJsonFile `"$dropsJsonPath`" --traceto `"$logFile`""
+    $dropsJson = Get-Content -Raw -Path $dropsJsonPath | ConvertFrom-Json
+    $latestDrop = find-latest-drop($dropsJson)
+    
+    if ($latestDrop -eq $null) {
+        Write-Host "No drop matching given name found: $dropServiceUrl/$dropNamePrefix/*" -ForegroundColor Red 
+        ExitWithExitCode 1
+    }
+
+    Write-Host "Downloading optimization data from drop $dropServiceUrl/$($latestDrop.Name)"
+    Exec-Console $dropToolPath "get --dropservice `"$dropServiceUrl`" $patAuth --name `"$($latestDrop.Name)`" --dest `"$IbcOptimizationDataDir`" --traceto `"$logFile`""
+}
 
 function Build-OptProfData() {
     $insertionDir = Join-Path $VSSetupDir "Insertion"
@@ -428,6 +497,10 @@ try {
         Prepare-TempDir
     }
 
+    if ($ci -and $restore -and $configuration -eq "Release") {
+        Restore-OptProfData
+    }
+
     if ($bootstrap) {
         $bootstrapDir = Make-BootstrapBuild
     }
@@ -436,7 +509,7 @@ try {
         BuildSolution
     }
     
-    if ($officialBuildId) {
+    if ($ci -and $build -and $configuration -eq "Release") {
         Build-OptProfData
     }
 
