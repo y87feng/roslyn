@@ -173,6 +173,7 @@ namespace BoundTreeGenerator
             WriteVisitor();
             WriteWalker();
             WriteRewriter();
+            WriteNullabilityRewriter();
             WriteTreeDumperNodeProducer();
             WriteEndNamespace();
         }
@@ -1083,7 +1084,7 @@ namespace BoundTreeGenerator
                     {
                         WriteLine("Case BoundKind.{0}: ", FixKeyword(StripBound(node.Name)));
                         Indent();
-                        WriteLine("Return Visit{0}(CType(node, {1}), arg)", StripBound(node.Name), node.Name);
+                        WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: false));
                         Outdent();
                     }
                     Outdent();
@@ -1143,7 +1144,7 @@ namespace BoundTreeGenerator
                     Indent();
                     foreach (var node in _tree.Types.OfType<Node>())
                     {
-                        WriteLine("Public Overridable Function Visit{0}(node As {1}) As BoundNode", StripBound(node.Name), node.Name);
+                        WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: false));
                         Indent();
                         WriteLine("Return Me.DefaultVisit(node)");
                         Outdent();
@@ -1169,7 +1170,7 @@ namespace BoundTreeGenerator
                     Brace();
                     foreach (var node in _tree.Types.OfType<Node>())
                     {
-                        WriteLine("public override BoundNode Visit{0}({1} node)", StripBound(node.Name), node.Name);
+                        WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: true));
                         Brace();
                         foreach (Field field in AllFields(node).Where(f => IsDerivedOrListOfDerived("BoundNode", f.Type) && !SkipInVisitor(f)))
                         {
@@ -1192,7 +1193,7 @@ namespace BoundTreeGenerator
 
                     foreach (var node in _tree.Types.OfType<Node>())
                     {
-                        WriteLine("Public Overrides Function Visit{0}(node as {1}) As BoundNode", StripBound(node.Name), node.Name);
+                        WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: true));
                         Indent();
                         foreach (Field field in AllFields(node).Where(f => IsDerivedOrListOfDerived("BoundNode", f.Type) && !SkipInVisitor(f)))
                             WriteLine("Me.Visit{1}(node.{0})", field.Name, IsNodeList(field.Type) ? "List" : "");
@@ -1346,7 +1347,7 @@ namespace BoundTreeGenerator
                         Brace();
                         foreach (var node in _tree.Types.OfType<Node>())
                         {
-                            WriteLine("public override BoundNode Visit{0}({1} node)", StripBound(node.Name), node.Name);
+                            WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: true));
                             Brace();
                             bool hadField = false;
                             foreach (Field field in AllNodeOrNodeListFields(node))
@@ -1392,7 +1393,7 @@ namespace BoundTreeGenerator
                         Blank();
                         foreach (var node in _tree.Types.OfType<Node>())
                         {
-                            WriteLine("Public Overrides Function Visit{0}(node As {1}) As BoundNode", StripBound(node.Name), node.Name);
+                            WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: true));
                             Indent();
 
                             bool hadField = false;
@@ -1430,6 +1431,70 @@ namespace BoundTreeGenerator
                         }
                         Outdent();
                         WriteLine("End Class");
+                        break;
+                    }
+
+                default:
+                    throw new ArgumentException("Unexpected target language", nameof(_targetLang));
+            }
+        }
+
+        private void WriteNullabilityRewriter()
+        {
+            switch (_targetLang)
+            {
+                case TargetLanguage.VB:
+                    break;
+
+                case TargetLanguage.CSharp:
+                    {
+                        Blank();
+                        WriteLine("internal sealed partial class NullabilityRewriter : BoundTreeRewriter");
+                        Brace();
+
+                        var topLevelNullabilities = "_topLevelNullabilities";
+                        WriteLine($"private readonly ImmutableDictionary<BoundExpression, TypeSymbolWithAnnotations> {topLevelNullabilities};");
+
+                        Blank();
+                        WriteLine("public NullabilityRewriter(ImmutableDictionary<BoundExpression, TypeSymbolWithAnnotations> topLevelNullabilities)");
+                        Brace();
+                        WriteLine($"{topLevelNullabilities} = topLevelNullabilities;");
+                        Unbrace();
+
+                        foreach (var node in _tree.Types.OfType<Node>().Where(n => IsDerivedType("BoundExpression", n.Name)))
+                        {
+                            Blank();
+                            WriteLine(GetVisitFunctionDeclaration(node.Name, isOverride: true));
+                            Brace();
+                            bool hadField = false;
+                            foreach (Field field in AllNodeOrNodeListFields(node))
+                            {
+                                hadField = true;
+                                if (SkipInVisitor(field))
+                                {
+                                    WriteLine($"{field.Type} {ToCamelCase(field.Name)} = node.{field.Name};");
+                                }
+                                else
+                                {
+                                    WriteLine($"{field.Type} {ToCamelCase(field.Name)} = ({field.Type})this.Visit{(IsNodeList(field.Type) ? "List" : "")}(node.{field.Name});");
+                                }
+                            }
+                            if (hadField)
+                            {
+                                Write($"{node.Name} updatedNode = node.Update");
+                                ParenList(AllSpecifiableFields(node), field => IsDerivedOrListOfDerived("BoundNode", field.Type) ? ToCamelCase(field.Name) : string.Format("node.{0}", field.Name));
+                                WriteLine(";");
+                                WriteLine($"updatedNode.TopLevelNullability = {topLevelNullabilities}[node].NullableAnnotation;");
+                                WriteLine("return updatedNode;");
+                            }
+                            else
+                            {
+                                WriteLine($"node.TopLevelNullability = {topLevelNullabilities}[node].NullableAnnotation;");
+                                WriteLine("return node;");
+                            }
+                            Unbrace();
+                        }
+                        Unbrace();
                         break;
                     }
 
@@ -1632,6 +1697,21 @@ namespace BoundTreeGenerator
 
                 case TargetLanguage.VB:
                     return name.IsVBKeyword();
+
+                default:
+                    throw new ArgumentException("Unexpected target language", nameof(_targetLang));
+            }
+        }
+
+        private string GetVisitFunctionDeclaration(string nodeName, bool isOverride)
+        {
+            switch (_targetLang)
+            {
+                case TargetLanguage.CSharp:
+                    return $"public {(isOverride ? "override" : "virtual")} BoundNode Visit{StripBound(nodeName)}({nodeName} node)";
+
+                case TargetLanguage.VB:
+                    return $"Public {(isOverride ? "Overrides" : "Overridable")} Function Visit{StripBound(nodeName)}(node As {nodeName}) As BoundNode";
 
                 default:
                     throw new ArgumentException("Unexpected target language", nameof(_targetLang));
