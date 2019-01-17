@@ -95,6 +95,8 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// </summary>
         private static readonly TypeSymbolWithAnnotations _invalidType = TypeSymbolWithAnnotations.Create(ErrorTypeSymbol.UnknownResultType);
 
+        private readonly PooledDictionary<BoundExpression, TypeSymbolWithAnnotations> _topLevelNullabilityMap = PooledDictionary<BoundExpression, TypeSymbolWithAnnotations>.GetInstance();
+
         private TypeSymbolWithAnnotations _resultType;
 
         /// <summary>
@@ -240,6 +242,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 ImmutableArray<PendingBranch> returns = walker.Analyze(ref badRegion);
                 diagnostics.AddRange(walker.Diagnostics);
                 Debug.Assert(!badRegion);
+#if DEBUG
+                DebugVerifier.Verify(walker, node);
+#endif
             }
             catch (BoundTreeVisitor.CancelledByStackGuardException ex) when (diagnostics != null)
             {
@@ -507,6 +512,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     break;
             }
 
+            _topLevelNullabilityMap[node] = _resultType;
             if (_callbackOpt != null)
             {
                 _callbackOpt(node, _resultType);
@@ -1130,6 +1136,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var initializer = node.InitializerOpt;
             if (initializer is null)
             {
+                _topLevelNullabilityMap[node.DeclaredType] = local.Type;
                 return null;
             }
 
@@ -1149,6 +1156,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             TrackNullableStateForAssignment(initializer, type, slot, valueType, MakeSlot(initializer));
+            _topLevelNullabilityMap[node.DeclaredType] = type;
             return null;
         }
 
@@ -1157,6 +1165,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert(!IsConditionalState);
             _resultType = _invalidType;
             var result = base.VisitExpressionWithoutStackGuard(node);
+            _topLevelNullabilityMap[node] = _resultType;
 #if DEBUG
             // Verify Visit method set _result.
             TypeSymbolWithAnnotations resultType = _resultType;
@@ -2342,7 +2351,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var receiverOpt = node.ReceiverOpt;
             TypeSymbolWithAnnotations receiverType = default;
 
-            if (receiverOpt != null && method.MethodKind != MethodKind.Constructor)
+            if (receiverOpt != null)
             {
                 receiverType = VisitRvalueWithResult(receiverOpt);
                 // https://github.com/dotnet/roslyn/issues/30598: Mark receiver as not null
@@ -4789,6 +4798,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
 
                 _resultType = TypeSymbolWithAnnotations.Create(type, nullableAnnotation);
+                _topLevelNullabilityMap[node.TargetType] = _resultType;
             }
 
             return null;
