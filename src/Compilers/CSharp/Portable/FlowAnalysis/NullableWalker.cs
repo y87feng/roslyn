@@ -120,6 +120,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             _variableTypes.Free();
             _placeholderLocalsOpt?.Free();
+            _topLevelNullabilityMap.Free();
             base.Free();
         }
 
@@ -199,7 +200,37 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 return;
             }
-            Analyze(compilation, method, node, diagnostics, useMethodSignatureReturnType: false, useMethodSignatureParameterTypes: false, methodSignatureOpt: null, returnTypes: null, initialState: null, callbackOpt);
+            NullableWalker walker = Analyze(compilation,
+                method,
+                node,
+                diagnostics,
+                useMethodSignatureReturnType: false,
+                useMethodSignatureParameterTypes: false,
+                methodSignatureOpt: null,
+                returnTypes: null,
+                initialState: null,
+                callbackOpt);
+            walker?.Free();
+        }
+
+        internal static BoundNode AnalyzeAndRewrite(
+            CSharpCompilation compilation,
+            MethodSymbol method,
+            BoundNode node,
+            DiagnosticBag diagnostics)
+        {
+            NullableWalker walker = Analyze(
+                compilation,
+                method,
+                node,
+                diagnostics,
+                useMethodSignatureReturnType: false,
+                useMethodSignatureParameterTypes: false,
+                methodSignatureOpt: null,
+                returnTypes: null,
+                initialState: null,
+                callbackOpt: null);
+            return Rewrite(walker, node);
         }
 
         internal static void Analyze(
@@ -210,7 +241,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             ArrayBuilder<(BoundReturnStatement, TypeSymbolWithAnnotations)> returnTypes,
             VariableState initialState)
         {
-            Analyze(
+            NullableWalker walker = Analyze(
                 compilation,
                 lambda.Symbol,
                 lambda.Body,
@@ -220,9 +251,19 @@ namespace Microsoft.CodeAnalysis.CSharp
                 methodSignatureOpt: delegateInvokeMethod,
                 returnTypes, initialState,
                 callbackOpt: null);
+            walker?.Free();
         }
 
-        private static void Analyze(
+        private static BoundNode Rewrite(
+            NullableWalker walker,
+            BoundNode node)
+        {
+            var rewriter = new NullabilityRewriter(walker._topLevelNullabilityMap.ToImmutableDictionary());
+            walker.Free();
+            return rewriter.Visit(node);
+        }
+
+        private static NullableWalker Analyze(
             CSharpCompilation compilation,
             MethodSymbol method,
             BoundNode node,
@@ -241,18 +282,16 @@ namespace Microsoft.CodeAnalysis.CSharp
                 bool badRegion = false;
                 ImmutableArray<PendingBranch> returns = walker.Analyze(ref badRegion);
                 diagnostics.AddRange(walker.Diagnostics);
-                Debug.Assert(!badRegion);
 #if DEBUG
-                DebugVerifier.Verify(walker, node);
+                Debug.Assert(!badRegion);
+                //DebugVerifier.Verify(walker, node);
 #endif
+                return walker;
             }
             catch (BoundTreeVisitor.CancelledByStackGuardException ex) when (diagnostics != null)
             {
                 ex.AddAnError(diagnostics);
-            }
-            finally
-            {
-                walker.Free();
+                return null;
             }
         }
 
@@ -3949,6 +3988,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             var body = node.Body;
             if (body != null)
             {
+                // TODO: Handle in rewriting
                 Analyze(
                     compilation,
                     node.Symbol,
@@ -3959,7 +3999,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     methodSignatureOpt: null,
                     returnTypes: null,
                     initialState: GetVariableState(),
-                    callbackOpt: _callbackOpt);
+                    callbackOpt: _callbackOpt)?.Free();
             }
             _resultType = _invalidType;
             return null;

@@ -309,12 +309,12 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
                 var diagnostics = DiagnosticBag.GetInstance();
                 var block = MethodCompiler.BindMethodBody(method, new TypeCompilationState(method.ContainingType, compilation, null), diagnostics);
                 var dictionary = new Dictionary<SyntaxNode, TypeSymbolWithAnnotations>();
-                NullableWalker.Analyze(
+                var rewritten = NullableWalker.AnalyzeAndRewrite(
                     compilation,
                     method,
                     block,
-                    diagnostics,
-                    callbackOpt: (BoundExpression expr, TypeSymbolWithAnnotations exprType) => dictionary[expr.Syntax] = exprType);
+                    diagnostics);
+                new TopLevelNullabilityRetreiver() { Map = dictionary }.Visit(rewritten);
                 diagnostics.Free();
                 var expectedTypes = annotations.SelectAsArray(annotation => annotation.Text);
                 var actualTypes = annotations.SelectAsArray(annotation => toDisplayString(annotation.Expression));
@@ -401,6 +401,41 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
                         break;
                 }
                 return expr;
+            }
+        }
+
+        private sealed class TopLevelNullabilityRetreiver : BoundTreeWalker
+        {
+            public Dictionary<SyntaxNode, TypeSymbolWithAnnotations> Map { get; set; }
+
+            protected override BoundExpression VisitExpressionWithoutStackGuard(BoundExpression node)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override BoundNode Visit(BoundNode node)
+            {
+                // For the purposes of verifying types, implicit conversions should not win over lower nodes
+                // with the same syntax, as when testing we're usually testing the kind before the conversion,
+                // and we have no way from syntax of getting the correct node.
+                if (node is BoundConversion conv && conv.ConversionKind.IsImplicitConversion())
+                {
+                    if (node is BoundExpression expr)
+                    {
+                        Map[expr.Syntax] = TypeSymbolWithAnnotations.Create(expr.Type, expr.TopLevelNullability);
+                    }
+                    base.Visit(node);
+                }
+                else
+                {
+                    base.Visit(node);
+                    if (node is BoundExpression expr)
+                    {
+                        Map[expr.Syntax] = TypeSymbolWithAnnotations.Create(expr.Type, expr.TopLevelNullability);
+                    }
+                }
+
+                return null;
             }
         }
     }
