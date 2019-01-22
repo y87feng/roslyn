@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CompilersBoundTreeGenerator": {
+      "commandName": "Project",
+      "commandLineArgs": "CSharp C:\\Users\\frsilb\\Documents\\git\\roslyn\\src\\Compilers\\CSharp\\Portable\\BoundTree\\BoundNodes.xml \"C:\\Users\\frsilb\\Documents\\git\\roslyn\\src\\Compilers\\CSharp\\Portable\\Generated\\BoundNodes.xml.Generated.cs\""
+    }
+  }
+}

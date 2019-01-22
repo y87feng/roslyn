@@ -178,8 +178,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         return NullableAnnotation.Unknown;
 
                     case BoundNodeAttributes.TopLevelNullableUnset:
-                        // TODO: this should indicate non nullable
-                        return default;
+                        return NullableAnnotation.NotComputed;
 
                     default:
                         throw ExceptionUtilities.UnexpectedValue(_attributes);

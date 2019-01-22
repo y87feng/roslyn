@@ -18,6 +18,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         Annotated,    // Type is annotated - string?, T? where T : class; and for int?, T? where T : struct.
         NotNullable,  // Explicitly set by flow analysis
         Nullable,     // Explicitly set by flow analysis
+        NotComputed,  // Used for the public API only
     }
 
     internal static class NullableAnnotationExtensions
@@ -287,6 +288,34 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
             hadNullabilityMismatch = true;
             return NullableAnnotation.NotAnnotated;
+        }
+
+        public static Nullability ConvertToNullability(this NullableAnnotation annotation, TypeSymbol type)
+        {
+            Debug.Assert(!type.IsPossiblyNullableReferenceTypeTypeParameter() || annotation != NullableAnnotation.NotAnnotated);
+            switch (annotation)
+            {
+                case NullableAnnotation.Annotated:
+                case NullableAnnotation.Nullable:
+                    return Nullability.MayBeNull;
+
+                case NullableAnnotation.NotNullable:
+                    return Nullability.NotNull;
+
+                case NullableAnnotation.NotAnnotated:
+                    return type.IsPossiblyNullableReferenceTypeTypeParameter() ?
+                        Nullability.MayBeNull :
+                        Nullability.NotNull;
+
+                case NullableAnnotation.Unknown:
+                    return Nullability.Unknown;
+
+                case NullableAnnotation.NotComputed:
+                    return Nullability.NotComputed;
+
+                default:
+                    throw ExceptionUtilities.UnexpectedValue(annotation);
+            }
         }
     }
 
