@@ -24,7 +24,8 @@ namespace Microsoft.CodeAnalysis.CSharp
         private readonly DiagnosticBag _ignoredDiagnostics = new DiagnosticBag();
         private readonly ReaderWriterLockSlim _nodeMapLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
         // The bound nodes associated with a syntax node, from highest in the tree to lowest.
-        private readonly Dictionary<SyntaxNode, ImmutableArray<BoundNode>> _guardedNodeMap = new Dictionary<SyntaxNode, ImmutableArray<BoundNode>>();
+        private readonly Dictionary<SyntaxNode, ImmutableArray<BoundNode>> _guardedInitialNodeMap = new Dictionary<SyntaxNode, ImmutableArray<BoundNode>>();
+        private readonly Dictionary<SyntaxNode, ImmutableArray<BoundNode>> _guardedNullableNodeMap = new Dictionary<SyntaxNode, ImmutableArray<BoundNode>>();
         private Dictionary<SyntaxNode, BoundStatement> _lazyGuardedSynthesizedStatementsMap;
 
         internal readonly Binder RootBinder;
@@ -1337,7 +1338,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(_nodeMapLock.IsWriteLockHeld || _nodeMapLock.IsReadLockHeld);
             ImmutableArray<BoundNode> result;
-            return _guardedNodeMap.TryGetValue(node, out result) ? result : default(ImmutableArray<BoundNode>);
+            return _guardedNullableNodeMap.TryGetValue(node, out result) ? result : default(ImmutableArray<BoundNode>);
         }
 
         /// <summary>
@@ -1346,12 +1347,12 @@ namespace Microsoft.CodeAnalysis.CSharp
         internal ImmutableArray<BoundNode> TestOnlyTryGetBoundNodesFromMap(CSharpSyntaxNode node)
         {
             ImmutableArray<BoundNode> result;
-            return _guardedNodeMap.TryGetValue(node, out result) ? result : default(ImmutableArray<BoundNode>);
+            return _guardedNullableNodeMap.TryGetValue(node, out result) ? result : default(ImmutableArray<BoundNode>);
         }
 
         // Adds every syntax/bound pair in a tree rooted at the given bound node to the map, and the
         // performs a lookup of the given syntax node in the map. 
-        private ImmutableArray<BoundNode> GuardedAddBoundTreeAndGetBoundNodeFromMap(CSharpSyntaxNode syntax, BoundNode bound)
+        private ImmutableArray<BoundNode> GuardedAddBoundTreeAndGetBoundNodeFromMap(CSharpSyntaxNode syntax, BoundNode bound, Dictionary<SyntaxNode, ImmutableArray<BoundNode>> guardedNodeMap)
         {
             Debug.Assert(_nodeMapLock.IsWriteLockHeld);
 
@@ -1359,18 +1360,18 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             if (bound != null)
             {
-                alreadyInTree = _guardedNodeMap.ContainsKey(bound.Syntax);
+                alreadyInTree = guardedNodeMap.ContainsKey(bound.Syntax);
             }
 
             // check if we already have node in the cache.
             // this may happen if we have races and in such case we are no longer interested in adding
             if (!alreadyInTree)
             {
-                NodeMapBuilder.AddToMap(bound, _guardedNodeMap);
+                NodeMapBuilder.AddToMap(bound, guardedNodeMap);
             }
 
             ImmutableArray<BoundNode> result;
-            return _guardedNodeMap.TryGetValue(syntax, out result) ? result : default(ImmutableArray<BoundNode>);
+            return guardedNodeMap.TryGetValue(syntax, out result) ? result : default(ImmutableArray<BoundNode>);
         }
 
         protected void UnguardedAddBoundTreeForStandaloneSyntax(SyntaxNode syntax, BoundNode bound)
@@ -1390,7 +1391,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             // this may happen if we have races and in such case we are no longer interested in adding
             if (bound != null)
             {
-                alreadyInTree = _guardedNodeMap.ContainsKey(bound.Syntax);
+                alreadyInTree = _guardedInitialNodeMap.ContainsKey(bound.Syntax);
             }
 
             if (!alreadyInTree)
@@ -1401,12 +1402,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                     // If syntax is a statement, we need to add all its children.
                     // Node cache assumes that if statement is cached, then all 
                     // its children are cached too.
-                    NodeMapBuilder.AddToMap(bound, _guardedNodeMap);
+                    NodeMapBuilder.AddToMap(bound, _guardedInitialNodeMap);
                 }
                 else
                 {
                     // expressions can be added individually.
-                    NodeMapBuilder.AddToMap(bound, _guardedNodeMap, syntax);
+                    NodeMapBuilder.AddToMap(bound, _guardedInitialNodeMap, syntax);
                 }
             }
         }
@@ -1428,7 +1429,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             for (CSharpSyntaxNode current = node; current != this.Root; current = current.ParentOrStructuredTriviaParent)
             {
-                if (current is StatementSyntax)
+                if (current is MemberDeclarationSyntax)
                 {
                     return current;
                 }
@@ -1578,7 +1579,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             using (_nodeMapLock.DisposableWrite())
             {
                 BoundNode boundOuterExpression = this.Bind(incrementalBinder, nodeToBind, _ignoredDiagnostics);
-                nodes = GuardedAddBoundTreeAndGetBoundNodeFromMap(lambdaOrQuery, boundOuterExpression);
+                nodes = GuardedAddBoundTreeAndGetBoundNodeFromMap(lambdaOrQuery, boundOuterExpression, _guardedInitialNodeMap);
             }
 
             if (!nodes.IsDefaultOrEmpty)
@@ -1606,7 +1607,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             using (_nodeMapLock.DisposableWrite())
             {
                 BoundNode boundOuterExpression = this.Bind(incrementalBinder, lambdaOrQuery, _ignoredDiagnostics);
-                nodes = GuardedAddBoundTreeAndGetBoundNodeFromMap(lambdaOrQuery, boundOuterExpression);
+                nodes = GuardedAddBoundTreeAndGetBoundNodeFromMap(lambdaOrQuery, boundOuterExpression, _guardedInitialNodeMap);
             }
 
             return GetLowerBoundNode(nodes);
@@ -1824,10 +1825,27 @@ done:
             var statementBinder = GetEnclosingBinder(GetAdjustedNodePosition(nodeToBind));
             Binder incrementalBinder = new IncrementalBinder(this, statementBinder);
 
+            BoundNode methodRoot;
             using (_nodeMapLock.DisposableWrite())
             {
-                BoundNode boundStatement = this.Bind(incrementalBinder, nodeToBind, _ignoredDiagnostics);
-                results = GuardedAddBoundTreeAndGetBoundNodeFromMap(node, boundStatement);
+                methodRoot = this.Bind(incrementalBinder, nodeToBind, _ignoredDiagnostics);
+                _ = GuardedAddBoundTreeAndGetBoundNodeFromMap(node, methodRoot, _guardedInitialNodeMap);
+            }
+
+            if (MemberSymbol is MethodSymbol method)
+            {
+                BoundNode rewritten = NullableWalker.AnalyzeAndRewrite(Compilation, method, methodRoot, new DiagnosticBag());
+                using (_nodeMapLock.DisposableWrite())
+                {
+                    results = GuardedAddBoundTreeAndGetBoundNodeFromMap(node, rewritten, _guardedNullableNodeMap);
+                }
+            }
+            else
+            {
+                using (_nodeMapLock.DisposableWrite())
+                {
+                    results = GuardedAddBoundTreeAndGetBoundNodeFromMap(node, methodRoot, _guardedNullableNodeMap);
+                }
             }
 
             if (!results.IsDefaultOrEmpty)

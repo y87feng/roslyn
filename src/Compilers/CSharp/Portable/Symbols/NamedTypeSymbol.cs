@@ -1588,6 +1588,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             }
         }
 
+        ImmutableArray<Nullability> INamedTypeSymbol.TypeArgumentsNullabilities
+        {
+            get => this.TypeArgumentsNoUseSiteDiagnostics.SelectAsArray(a => a.NullableAnnotation.ConvertToPublicNullability(a.TypeSymbol));
+        }
+
         ImmutableArray<CustomModifier> INamedTypeSymbol.GetTypeArgumentCustomModifiers(int ordinal)
         {
             return this.TypeArgumentsNoUseSiteDiagnostics[ordinal].CustomModifiers;

@@ -104,6 +104,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         /// </summary>
         public static NullableAnnotation JoinForFlowAnalysisBranches<T>(this NullableAnnotation selfAnnotation, NullableAnnotation otherAnnotation, T type, Func<T, bool> isPossiblyNullableReferenceTypeTypeParameter)
         {
+            Debug.Assert(selfAnnotation != NullableAnnotation.NotComputed && otherAnnotation != NullableAnnotation.NotComputed);
             if (selfAnnotation == otherAnnotation)
             {
                 return selfAnnotation;
@@ -290,9 +291,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return NullableAnnotation.NotAnnotated;
         }
 
-        public static Nullability ConvertToNullability(this NullableAnnotation annotation, TypeSymbol type)
+        public static Nullability ConvertToPublicNullability(this NullableAnnotation annotation, TypeSymbol type)
         {
-            Debug.Assert(!type.IsPossiblyNullableReferenceTypeTypeParameter() || annotation != NullableAnnotation.NotAnnotated);
             switch (annotation)
             {
                 case NullableAnnotation.Annotated:

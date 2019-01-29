@@ -691,6 +691,22 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
         #region ITypeParameterTypeSymbol Members
 
+        Nullability ITypeParameterSymbol.ReferenceTypeConstraintNullability
+        {
+            get
+            {
+                switch (ReferenceTypeConstraintIsNullable)
+                {
+                    case true when true:
+                        return Nullability.NotNull;
+                    case false:
+                        return Nullability.MayBeNull;
+                    case null:
+                        return Nullability.NotApplicable;
+                }
+            }
+        }
+
         TypeParameterKind ITypeParameterSymbol.TypeParameterKind
         {
             get
@@ -715,6 +731,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             {
                 return this.ConstraintTypesNoUseSiteDiagnostics.SelectAsArray(c => (ITypeSymbol)c.TypeSymbol);
             }
+        }
+
+        ImmutableArray<Nullability> ITypeParameterSymbol.ConstraintsNullabilities
+        {
+            get => this.ConstraintTypesNoUseSiteDiagnostics.SelectAsArray(c => c.NullableAnnotation.ConvertToPublicNullability(c.TypeSymbol));
         }
 
         ITypeParameterSymbol ITypeParameterSymbol.OriginalDefinition

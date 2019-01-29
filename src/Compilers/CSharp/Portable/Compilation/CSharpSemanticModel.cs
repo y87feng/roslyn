@@ -582,9 +582,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 switch (variable)
                 {
                     case LocalSymbol local:
-                        return (local.Type.TypeSymbol, local.Type.NullableAnnotation.ConvertToNullability(local.Type.TypeSymbol));
+                        return (local.Type.TypeSymbol, local.Type.NullableAnnotation.ConvertToPublicNullability(local.Type.TypeSymbol));
                     case FieldSymbol field:
-                        return (field.Type.TypeSymbol, field.Type.NullableAnnotation.ConvertToNullability(field.Type.TypeSymbol));
+                        return (field.Type.TypeSymbol, field.Type.NullableAnnotation.ConvertToPublicNullability(field.Type.TypeSymbol));
                 }
             }
 
@@ -1945,6 +1945,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 if (boundExpr.HasExpressionType())
                 {
                     type = boundExpr.Type;
+                    nullability = getNullability(boundExpr.TopLevelNullability.ConvertToPublicNullability(type));
 
                     switch (boundExpr.Kind)
                     {
@@ -1998,14 +1999,22 @@ namespace Microsoft.CodeAnalysis.CSharp
                     {
                         var convertedTuple = (BoundConvertedTupleLiteral)tupleLiteralConversion.Operand;
                         type = convertedTuple.NaturalTypeOpt;
-                        nullability = getNullability(convertedTuple.TopLevelNullability.ConvertToNullability(type));
+                        if ((object)type != null)
+                        {
+                            nullability = getNullability(convertedTuple.TopLevelNullability.ConvertToPublicNullability(type));
+                        }
+                        else
+                        {
+                            nullability = getNullability(Nullability.NotNull);
+                        }
                     }
                     else
                     {
                         type = tupleLiteralConversion.Operand.Type;
-                        nullability = getNullability(tupleLiteralConversion.TopLevelNullability.ConvertToNullability(type));
+                        nullability = getNullability(tupleLiteralConversion.TopLevelNullability.ConvertToPublicNullability(type));
                     }
                     convertedType = tupleLiteralConversion.Type;
+                    convertedNullability = getNullability(tupleLiteralConversion.TopLevelNullability.ConvertToPublicNullability(convertedType));
                     conversion = tupleLiteralConversion.Conversion;
                 }
                 else if (highestBoundExprKind == BoundKind.FixedLocalCollectionInitializer)
@@ -2013,7 +2022,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     var initializer = (BoundFixedLocalCollectionInitializer)highestBoundExpr;
                     convertedType = initializer.Type;
                     type = initializer.Expression.Type;
-                    nullability = getNullability(initializer.Expression.TopLevelNullability.ConvertToNullability(type));
+                    nullability = getNullability(initializer.Expression.TopLevelNullability.ConvertToPublicNullability(type));
 
                     // the most pertinent conversion is the pointer conversion
                     conversion = initializer.ElementPointerTypeConversion;
@@ -2021,7 +2030,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 else if (highestBoundExpr != null && highestBoundExpr != boundExpr && highestBoundExpr.HasExpressionType())
                 {
                     convertedType = highestBoundExpr.Type;
-                    convertedNullability = getNullability(highestBoundExpr.TopLevelNullability.ConvertToNullability(convertedType));
+                    convertedNullability = getNullability(highestBoundExpr.TopLevelNullability.ConvertToPublicNullability(convertedType));
                     if (highestBoundExprKind != BoundKind.Conversion)
                     {
                         conversion = Conversion.Identity;

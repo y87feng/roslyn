@@ -1,7 +1,15 @@
 *REMOVED*Microsoft.CodeAnalysis.Operations.IEventAssignmentOperation.EventReference.get -> Microsoft.CodeAnalysis.Operations.IEventReferenceOperation
+Microsoft.CodeAnalysis.IArrayTypeSymbol.ElementNullability.get -> Microsoft.CodeAnalysis.Nullability
 Microsoft.CodeAnalysis.IFieldSymbol.IsFixedSizeBuffer.get -> bool
+Microsoft.CodeAnalysis.INamedTypeSymbol.TypeArgumentsNullabilities.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Nullability>
+Microsoft.CodeAnalysis.ITypeParameterSymbol.ConstraintsNullabilities.get -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.Nullability>
+Microsoft.CodeAnalysis.ITypeParameterSymbol.ReferenceTypeConstraintNullability.get -> Microsoft.CodeAnalysis.Nullability
 Microsoft.CodeAnalysis.ITypeSymbol.IsRefLikeType.get -> bool
 Microsoft.CodeAnalysis.ITypeSymbol.IsUnmanagedType.get -> bool
+Microsoft.CodeAnalysis.ITypeSymbol.ToDisplayParts(Microsoft.CodeAnalysis.Nullability topLevelNullability, Microsoft.CodeAnalysis.SymbolDisplayFormat format = null) -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.SymbolDisplayPart>
+Microsoft.CodeAnalysis.ITypeSymbol.ToDisplayString(Microsoft.CodeAnalysis.Nullability topLevelNullability, Microsoft.CodeAnalysis.SymbolDisplayFormat format = null) -> string
+Microsoft.CodeAnalysis.ITypeSymbol.ToMinimalDisplayParts(Microsoft.CodeAnalysis.SemanticModel semanticModel, Microsoft.CodeAnalysis.Nullability topLevelNullability, int position, Microsoft.CodeAnalysis.SymbolDisplayFormat format = null) -> System.Collections.Immutable.ImmutableArray<Microsoft.CodeAnalysis.SymbolDisplayPart>
+Microsoft.CodeAnalysis.ITypeSymbol.ToMinimalDisplayString(Microsoft.CodeAnalysis.SemanticModel semanticModel, Microsoft.CodeAnalysis.Nullability topLevelNullability, int position, Microsoft.CodeAnalysis.SymbolDisplayFormat format = null) -> string
 Microsoft.CodeAnalysis.Nullability
 Microsoft.CodeAnalysis.Nullability.MayBeNull = 4 -> Microsoft.CodeAnalysis.Nullability
 Microsoft.CodeAnalysis.Nullability.NotApplicable = 0 -> Microsoft.CodeAnalysis.Nullability

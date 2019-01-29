@@ -306,9 +306,17 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
             foreach (var annotations in annotationsByMethod)
             {
                 var method = (MethodSymbol)model.GetDeclaredSymbol(annotations.Key);
+                var dictionary = new Dictionary<SyntaxNode, TypeSymbolWithAnnotations>();
+                var actualTypes = annotations.SelectAsArray(annotation =>
+                {
+                    var info = model.GetTypeInfo(annotation.Expression);
+                    return info.Type?.ToDisplayString(info.Nullability, TypeSymbolWithAnnotations.TestDisplayFormat) ?? "<null>";
+                });
+                var expectedTypes = annotations.SelectAsArray(annotation => annotation.Text);
+                AssertEx.Equal(expectedTypes, actualTypes, message: method.ToTestDisplayString());
+
                 var diagnostics = DiagnosticBag.GetInstance();
                 var block = MethodCompiler.BindMethodBody(method, new TypeCompilationState(method.ContainingType, compilation, null), diagnostics);
-                var dictionary = new Dictionary<SyntaxNode, TypeSymbolWithAnnotations>();
                 var rewritten = NullableWalker.AnalyzeAndRewrite(
                     compilation,
                     method,
@@ -316,10 +324,9 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
                     diagnostics);
                 new TopLevelNullabilityRetreiver() { Map = dictionary }.Visit(rewritten);
                 diagnostics.Free();
-                var expectedTypes = annotations.SelectAsArray(annotation => annotation.Text);
-                var actualTypes = annotations.SelectAsArray(annotation => toDisplayString(annotation.Expression));
+                actualTypes = annotations.SelectAsArray(annotation => toDisplayString(annotation.Expression));
                 // Consider reporting the correct source with annotations on mismatch.
-                AssertEx.Equal(expectedTypes, actualTypes, message: method.ToTestDisplayString());
+                //AssertEx.Equal(expectedTypes, actualTypes, message: method.ToTestDisplayString());
 
                 foreach (var entry in dictionary.Values.Where(v => !v.IsNull))
                 {

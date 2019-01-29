@@ -67890,7 +67890,7 @@ partial class Program
             AssertDiagnosticOptions_02(source);
         }
 
-        private readonly static NullableAnnotation[] s_AllNullableAnnotations = (NullableAnnotation[])Enum.GetValues(typeof(NullableAnnotation));
+        private readonly static NullableAnnotation[] s_AllNullableAnnotations = ((NullableAnnotation[])Enum.GetValues(typeof(NullableAnnotation))).Where(n => n != NullableAnnotation.NotComputed).ToArray();
         private readonly static NullableAnnotation[] s_AllSpeakableNullableAnnotations = new[] { NullableAnnotation.Unknown, NullableAnnotation.NotAnnotated, NullableAnnotation.Annotated };
 
         [Fact]

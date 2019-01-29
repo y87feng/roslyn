@@ -111,6 +111,22 @@ namespace Microsoft.CodeAnalysis
         /// has no concept of unmanaged types.
         /// </summary>
         bool IsUnmanagedType { get; }
+
+        string ToDisplayString(Nullability topLevelNullability, SymbolDisplayFormat format = null);
+
+        ImmutableArray<SymbolDisplayPart> ToDisplayParts(Nullability topLevelNullability, SymbolDisplayFormat format = null);
+
+        string ToMinimalDisplayString(
+            SemanticModel semanticModel,
+            Nullability topLevelNullability,
+            int position,
+            SymbolDisplayFormat format = null);
+
+        ImmutableArray<SymbolDisplayPart> ToMinimalDisplayParts(
+            SemanticModel semanticModel,
+            Nullability topLevelNullability,
+            int position,
+            SymbolDisplayFormat format = null);
     }
 
     // Intentionally not extension methods. We don't want them ever be called for symbol classes
