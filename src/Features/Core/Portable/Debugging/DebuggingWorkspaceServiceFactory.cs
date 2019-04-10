@@ -10,15 +10,12 @@ namespace Microsoft.CodeAnalysis.Debugging
     [ExportWorkspaceServiceFactory(typeof(IDebuggingWorkspaceService), ServiceLayer.Host), Shared]
     internal sealed class DebuggingWorkspaceServiceFactory : IWorkspaceServiceFactory
     {
-        private readonly IEditAndContinueService _editAndContinueServiceOpt;
-
         [ImportingConstructor]
-        public DebuggingWorkspaceServiceFactory([Import(AllowDefault = true)]IEditAndContinueService editAndContinueServiceOpt)
+        public DebuggingWorkspaceServiceFactory()
         {
-            _editAndContinueServiceOpt = editAndContinueServiceOpt;
         }
 
         public IWorkspaceService CreateService(HostWorkspaceServices workspaceServices)
-            => new DebuggingWorkspaceService(_editAndContinueServiceOpt);
+            => new DebuggingWorkspaceService();
     }
 }

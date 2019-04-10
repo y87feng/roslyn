@@ -20,7 +20,10 @@ using TextSpan = Microsoft.VisualStudio.TextManager.Interop.TextSpan;
 
 namespace Microsoft.VisualStudio.LanguageServices.Implementation
 {
-    internal abstract class AbstractVsTextViewFilter<TPackage, TLanguageService> : AbstractVsTextViewFilter, IVsTextViewFilter, IVsReadOnlyViewNotification
+    internal abstract class AbstractVsTextViewFilter<TPackage, TLanguageService> : AbstractVsTextViewFilter, IVsTextViewFilter
+#if FALSE
+        , IVsReadOnlyViewNotification
+#endif
         where TPackage : AbstractPackage<TPackage, TLanguageService>
         where TLanguageService : AbstractLanguageService<TPackage, TLanguageService>
     {
@@ -123,7 +126,8 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation
         int IVsTextViewFilter.GetWordExtent(int iLine, int iIndex, uint dwFlags, TextSpan[] pSpan)
             => VSConstants.E_NOTIMPL;
 
-        #region Edit and Continue 
+#if FALSE
+#region Edit and Continue 
 
         int IVsReadOnlyViewNotification.OnDisabledEditingCommand(ref Guid pguidCmdGuid, uint dwCmdId)
         {
@@ -155,6 +159,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation
             return VSConstants.S_OK;
         }
 
-        #endregion
+#endregion
+#endif
     }
 }

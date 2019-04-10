@@ -44,8 +44,6 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.ProjectSystem.L
 
         #region Mutable fields that should only be used from the UI thread
 
-        private readonly VsENCRebuildableProjectImpl _editAndContinueProject;
-
         private readonly SolutionEventsBatchScopeCreator _batchScopeCreator;
 
         #endregion
@@ -107,16 +105,7 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.ProjectSystem.L
             ConnectHierarchyEvents();
             RefreshBinOutputPath();
 
-            // TODO: remove this terrible hack, which is working around shims throwing in not-good ways
-            try
-            {
-                _externalErrorReporter = new ProjectExternalErrorReporter(VisualStudioProject.Id, externalErrorReportingPrefix, serviceProvider);
-                _editAndContinueProject = new VsENCRebuildableProjectImpl(Workspace, VisualStudioProject, serviceProvider);
-            }
-            catch (Exception)
-            {
-            }
-
+            _externalErrorReporter = new ProjectExternalErrorReporter(VisualStudioProject.Id, externalErrorReportingPrefix, serviceProvider);
             _batchScopeCreator = componentModel.GetService<SolutionEventsBatchScopeCreator>();
             _batchScopeCreator.StartTrackingProject(VisualStudioProject, Hierarchy);
         }

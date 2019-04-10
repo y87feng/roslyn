@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
 using System;
-using System.Composition;
-using Microsoft.CodeAnalysis.EditAndContinue;
 
 namespace Microsoft.CodeAnalysis.Debugging
 {
@@ -10,11 +8,8 @@ namespace Microsoft.CodeAnalysis.Debugging
     {
         public event EventHandler<DebuggingStateChangedEventArgs> BeforeDebuggingStateChanged;
 
-        public IEditAndContinueService EditAndContinueServiceOpt { get; }
-
-        internal DebuggingWorkspaceService(IEditAndContinueService editAndContinueServiceOpt)
+        internal DebuggingWorkspaceService()
         {
-            EditAndContinueServiceOpt = editAndContinueServiceOpt;
         }
 
         public void OnBeforeDebuggingStateChanged(DebuggingState before, DebuggingState after)
