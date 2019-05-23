@@ -32,6 +32,9 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
         {
         }
 
+        public override bool OpenFileOnly(Workspace workspace)
+            => true;
+
         public override DiagnosticAnalyzerCategory GetAnalyzerCategory() => DiagnosticAnalyzerCategory.SemanticDocumentAnalysis;
 
         protected override void InitializeWorker(AnalysisContext context)
