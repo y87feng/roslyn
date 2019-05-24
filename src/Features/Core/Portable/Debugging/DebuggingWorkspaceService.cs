@@ -8,10 +8,6 @@ namespace Microsoft.CodeAnalysis.Debugging
     {
         public event EventHandler<DebuggingStateChangedEventArgs> BeforeDebuggingStateChanged;
 
-        internal DebuggingWorkspaceService()
-        {
-        }
-
         public void OnBeforeDebuggingStateChanged(DebuggingState before, DebuggingState after)
             => BeforeDebuggingStateChanged?.Invoke(this, new DebuggingStateChangedEventArgs(before, after));
     }
