@@ -14,6 +14,7 @@ using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow.PointsToAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Shared.Extensions;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.DisposeAnalysis
 {
@@ -161,9 +162,12 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
                 operation.Parent is IArgumentOperation argument && argument.Parameter.RefKind == RefKind.Out) &&
                operation.Type?.IsDisposable(IDisposableType) == true;
 
-        public bool HasAnyDisposableCreationDescendant(ImmutableArray<IOperation> operationBlocks, IMethodSymbol containingMethod)
+        public bool HasAnyDisposableCreationDescendant(
+            ImmutableArray<IOperation> operationBlocks,
+            IMethodSymbol containingMethod,
+            Func<IOperation, bool> predicateOpt = null)
         {
-            return operationBlocks.HasAnyOperationDescendant(IsDisposableCreation) ||
+            return operationBlocks.HasAnyOperationDescendant(o => IsDisposableCreation(o) && (predicateOpt == null || predicateOpt(o))) ||
                 HasDisposableOwnershipTransferForConstructorParameter(containingMethod);
         }
 

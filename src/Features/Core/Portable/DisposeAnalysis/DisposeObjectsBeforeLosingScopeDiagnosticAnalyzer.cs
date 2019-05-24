@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis.FlowAnalysis;
 using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow;
 using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow.DisposeAnalysis;
 using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow.PointsToAnalysis;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Shared.Extensions;
 
@@ -68,12 +69,43 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
         {
             // We are only intersted in analyzing method bodies that have at least one disposable object creation.
             if (!(operationBlockContext.OwningSymbol is IMethodSymbol containingMethod) ||
-                !disposeAnalysisHelper.HasAnyDisposableCreationDescendant(operationBlockContext.OperationBlocks, containingMethod))
+                !disposeAnalysisHelper.HasAnyDisposableCreationDescendant(operationBlockContext.OperationBlocks, containingMethod, DisposableCreationNeedsAnalysis))
             {
                 return;
             }
 
             PerformFlowAnalysisOnOperationBlock(operationBlockContext, disposeAnalysisHelper, reportedLocations, containingMethod);
+
+            static bool DisposableCreationNeedsAnalysis(IOperation operation)
+            {
+                if (operation.Parent is IVariableInitializerOperation variableInitializer &&
+                    variableInitializer.Parent is IVariableDeclaratorOperation variableDeclarator &&
+                    variableDeclarator.Parent is IVariableDeclarationOperation variableDeclaration &&
+                    variableDeclaration.Parent is IVariableDeclarationGroupOperation variableDeclarationGroup &&
+                    variableDeclarationGroup.Declarations.Length == 1 &&
+                    variableDeclarationGroup.Parent is IUsingOperation)
+                {
+                    return false;
+                }
+
+                if (operation.Parent is ISimpleAssignmentOperation simpleAssignment &&
+                    simpleAssignment.Value == operation &&
+                    simpleAssignment.Target is IMemberReferenceOperation)
+                {
+                    return false;
+                }
+
+                if (operation.Parent is IArgumentOperation &&
+                    (operation.Parent.Parent is IInvocationOperation invocation &&
+                     !invocation.TargetMethod.IsFromSource() ||
+                     operation.Parent.Parent is IObjectCreationOperation creation &&
+                     !creation.Constructor.IsFromSource()))
+                {
+                    return false;
+                }
+
+                return true;
+            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

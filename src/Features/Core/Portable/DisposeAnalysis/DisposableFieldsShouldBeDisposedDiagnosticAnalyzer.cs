@@ -3,6 +3,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.CodeAnalysis.CodeQuality;
@@ -13,6 +14,7 @@ using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow.DisposeAnalysis;
 using Microsoft.CodeAnalysis.FlowAnalysis.DataFlow.PointsToAnalysis;
 using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Shared.Extensions;
+using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.DisposeAnalysis
 {
@@ -28,7 +30,7 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
             isUnneccessary: false);
 
         public DisposableFieldsShouldBeDisposedDiagnosticAnalyzer()
-            : base(ImmutableArray.Create(s_disposableFieldsShouldBeDisposedRule), GeneratedCodeAnalysisFlags.Analyze)
+            : base(ImmutableArray.Create(s_disposableFieldsShouldBeDisposedRule), GeneratedCodeAnalysisFlags.None)
         {
         }
 
@@ -75,6 +77,12 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
                 // and have at least one disposable field.
                 var namedType = (INamedTypeSymbol)symbolStartContext.Symbol;
                 if (!namedType.IsDisposable(disposeAnalysisHelper.IDisposableType))
+                {
+                    return;
+                }
+
+                // Skip analysis for types with any partial declaration in generated code.
+                if (namedType.DeclaringSyntaxReferences.Any(r => GeneratedCodeUtilities.IsGeneratedCodeFile(r.SyntaxTree)))
                 {
                     return;
                 }
