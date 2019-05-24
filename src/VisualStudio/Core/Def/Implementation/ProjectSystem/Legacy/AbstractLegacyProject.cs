@@ -105,7 +105,17 @@ namespace Microsoft.VisualStudio.LanguageServices.Implementation.ProjectSystem.L
             ConnectHierarchyEvents();
             RefreshBinOutputPath();
 
-            _externalErrorReporter = new ProjectExternalErrorReporter(VisualStudioProject.Id, externalErrorReportingPrefix, serviceProvider);
+            // TODO: The ctor of ExternalErrorDiagnosticUpdateSource throws when running in tests since UIContextImpl calls:
+            //   (IVsMonitorSelection)ServiceProvider.GlobalProvider.GetService(typeof(IVsMonitorSelection))),
+            // which returns null.
+            try
+            {
+                _externalErrorReporter = new ProjectExternalErrorReporter(VisualStudioProject.Id, externalErrorReportingPrefix, serviceProvider);
+            }
+            catch (Exception)
+            {
+            }
+
             _batchScopeCreator = componentModel.GetService<SolutionEventsBatchScopeCreator>();
             _batchScopeCreator.StartTrackingProject(VisualStudioProject, Hierarchy);
         }
