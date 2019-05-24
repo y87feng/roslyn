@@ -19,10 +19,11 @@ using Roslyn.Utilities;
 
 namespace Microsoft.CodeAnalysis.EditAndContinue
 {
-    internal sealed class EditSession
+    internal sealed class EditSession : IDisposable
     {
+        private readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
+
         internal readonly DebuggingSession DebuggingSession;
-        internal readonly CancellationTokenSource Cancellation;
         internal readonly EditSessionTelemetry Telemetry;
 
         /// <summary>
@@ -52,7 +53,8 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         /// The work is triggered by an incremental analyzer on idle or explicitly when "continue" operation is executed.
         /// Contains analyses of the latest observed document versions.
         /// </summary>
-        private readonly Dictionary<DocumentId, (Document Document, AsyncLazy<DocumentAnalysisResults> Results)> _analyses;
+        private readonly Dictionary<DocumentId, (Document Document, AsyncLazy<DocumentAnalysisResults> Results)> _analyses
+            = new Dictionary<DocumentId, (Document, AsyncLazy<DocumentAnalysisResults>)>();
         private readonly object _analysesGuard = new object();
 
         /// <summary>
@@ -63,7 +65,8 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         /// the state of the module when queried for the first time. Before we actually apply an edit to the module 
         /// we need to query again instead of just reusing the diagnostic.
         /// </summary>
-        private readonly Dictionary<Guid, ImmutableArray<LocationlessDiagnostic>> _moduleDiagnostics;
+        private readonly Dictionary<Guid, ImmutableArray<LocationlessDiagnostic>> _moduleDiagnostics
+             = new Dictionary<Guid, ImmutableArray<LocationlessDiagnostic>>();
         private readonly object _moduleDiagnosticsGuard = new object();
 
         /// <summary>
@@ -71,7 +74,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         /// rude edits or module diagnostics. At the end of the session we ask the diagnostic analyzer to reanalyze 
         /// the documents to clean up the diagnostics.
         /// </summary>
-        private readonly HashSet<DocumentId> _documentsWithReportedDiagnostics;
+        private readonly HashSet<DocumentId> _documentsWithReportedDiagnostics = new HashSet<DocumentId>();
         private readonly object _documentsWithReportedDiagnosticsGuard = new object();
 
         private bool _changesApplied;
@@ -83,10 +86,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
             DebuggingSession = debuggingSession;
 
-            _analyses = new Dictionary<DocumentId, (Document Document, AsyncLazy<DocumentAnalysisResults> Results)>();
-            _documentsWithReportedDiagnostics = new HashSet<DocumentId>();
-            _moduleDiagnostics = new Dictionary<Guid, ImmutableArray<LocationlessDiagnostic>>();
-
             _nonRemappableRegions = debuggingSession.NonRemappableRegions;
 
             Telemetry = telemetry;
@@ -95,7 +94,14 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             BaseActiveStatements = new AsyncLazy<ActiveStatementsMap>(GetBaseActiveStatementsAsync, cacheResult: true);
             BaseActiveExceptionRegions = new AsyncLazy<ImmutableArray<ActiveStatementExceptionRegions>>(GetBaseActiveExceptionRegionsAsync, cacheResult: true);
             StoppedAtException = stoppedAtException;
-            Cancellation = new CancellationTokenSource();
+        }
+
+        internal CancellationToken CancellationToken => _cancellationSource.Token;
+        internal void Cancel() => _cancellationSource.Cancel();
+
+        public void Dispose()
+        {
+            _cancellationSource.Dispose();
         }
 
         internal void ModuleInstanceLoadedOrUnloaded(Guid mvid)
@@ -284,7 +290,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             }
         }
 
-        private List<(DocumentId Document, AsyncLazy<DocumentAnalysisResults> Results)> GetChangedDocumentsAnalyses(Project baseProject, Project project)
+        private List<(DocumentId DocumentId, AsyncLazy<DocumentAnalysisResults> Results)> GetChangedDocumentsAnalyses(Project baseProject, Project project)
         {
             var changes = project.GetChanges(baseProject);
             var changedDocuments = changes.GetChangedDocuments().Concat(changes.GetAddedDocuments());
@@ -408,8 +414,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         {
             try
             {
-                // TODO: paralellize
-
                 if (_changesApplied)
                 {
                     return SolutionUpdateStatus.None;
@@ -449,7 +453,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     }
 
                     var (mvid, _) = await DebuggingSession.GetProjectModuleIdAsync(baseProject.Id, cancellationToken).ConfigureAwait(false);
-                    if (mvid == default)
+                    if (mvid == Guid.Empty)
                     {
                         // project not built
                         EditAndContinueWorkspaceService.Log.Write("EnC state of '{0}' [0x{1:X8}] queried: project not built", project.Id.DebugName, project.Id);
@@ -489,14 +493,14 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
                 return anyChanges ? SolutionUpdateStatus.Ready : SolutionUpdateStatus.None;
             }
-            catch (Exception e) when (FatalError.ReportWithoutCrashUnlessCanceledAndPropagate(e)) // TODO
+            catch (Exception e) when (FatalError.ReportWithoutCrashUnlessCanceledAndPropagate(e))
             {
                 throw ExceptionUtilities.Unreachable;
             }
         }
 
         private async Task<ProjectAnalysisSummary> GetProjectAnalysisSymmaryAsync(
-            List<(DocumentId Document, AsyncLazy<DocumentAnalysisResults> Results)> documentAnalyses,
+            List<(DocumentId DocumentId, AsyncLazy<DocumentAnalysisResults> Results)> documentAnalyses,
             CancellationToken cancellationToken)
         {
             Debug.Assert(!StoppedAtException);
@@ -615,8 +619,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
             try
             {
-                // TODO: parallelize
-
                 bool isBlocked = false;
 
                 foreach (var project in solution.Projects)
@@ -641,7 +643,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     }
 
                     var (mvid, mvidReadError) = await DebuggingSession.GetProjectModuleIdAsync(project.Id, cancellationToken).ConfigureAwait(false);
-                    if (mvid == default && mvidReadError == null)
+                    if (mvid == Guid.Empty && mvidReadError == null)
                     {
                         EditAndContinueWorkspaceService.Log.Write("Emitting update of '{0}' [0x{1:X8}]: project not built", project.Id.DebugName, project.Id);
                         continue;
@@ -688,18 +690,18 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     var baseActiveExceptionRegions = await BaseActiveExceptionRegions.GetValueAsync(cancellationToken).ConfigureAwait(false);
                     var lineEdits = projectChanges.LineChanges.SelectAsArray((lineChange, p) => (p.GetDocument(lineChange.DocumentId).FilePath, lineChange.Changes), project);
 
-                    // Dispatch to a background thread - the compiler reads symbols and ISymUnmanagedReader requires MTA thread/
+                    // Dispatch to a background thread - the compiler reads symbols and ISymUnmanagedReader requires MTA thread.
                     // We also don't want to block the UI thread - emit might perform IO.
                     if (Thread.CurrentThread.GetApartmentState() != ApartmentState.MTA)
                     {
-                        await Task.Factory.SafeStartNew(emit, cancellationToken, TaskScheduler.Default).ConfigureAwait(false);
+                        await Task.Factory.SafeStartNew(Emit, cancellationToken, TaskScheduler.Default).ConfigureAwait(false);
                     }
                     else
                     {
-                        emit();
+                        Emit();
                     }
 
-                    void emit()
+                    void Emit()
                     {
                         Debug.Assert(Thread.CurrentThread.GetApartmentState() == ApartmentState.MTA, "SymReader requires MTA");
 

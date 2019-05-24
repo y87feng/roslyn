@@ -711,7 +711,7 @@ class C1
                 Assert.Empty(editSession.DebuggingSession.NonRemappableRegions);
 
                 // no open module readers since we didn't defer any module update:
-                Assert.Empty(editSession.DebuggingSession.Test_GetBaselineModuleReaders());
+                Assert.Empty(editSession.DebuggingSession.GetBaselineModuleReaders());
 
                 // solution update status after discarding an update (still has update ready):
                 var commitedUpdateSolutionStatus = await service.GetSolutionUpdateStatusAsync(sourceFilePath: null, CancellationToken.None).ConfigureAwait(false);
@@ -815,7 +815,7 @@ class C1
                     Assert.Empty(editSession.DebuggingSession.NonRemappableRegions);
 
                     // no open module readers since we didn't defer any module update:
-                    Assert.Empty(editSession.DebuggingSession.Test_GetBaselineModuleReaders());
+                    Assert.Empty(editSession.DebuggingSession.GetBaselineModuleReaders());
 
                     // verify that baseline is added:
                     Assert.Same(newBaseline, editSession.DebuggingSession.Test_GetProjectEmitBaseline(project.Id));
@@ -933,7 +933,7 @@ class C1
                     Assert.Empty(editSession.DebuggingSession.NonRemappableRegions);
 
                     // deferred module readers tracked:
-                    Assert.Same(moduleReader, editSession.DebuggingSession.Test_GetBaselineModuleReaders().Single());
+                    Assert.Same(moduleReader, editSession.DebuggingSession.GetBaselineModuleReaders().Single());
 
                     // verify that baseline is added:
                     Assert.Same(newBaseline, editSession.DebuggingSession.Test_GetProjectEmitBaseline(project.Id));
@@ -954,7 +954,7 @@ class C1
                     Assert.Null(service.Test_GetPendingSolutionUpdate());
 
                     // no open module readers since we didn't defer any module update:
-                    Assert.Empty(editSession.DebuggingSession.Test_GetBaselineModuleReaders());
+                    Assert.Empty(editSession.DebuggingSession.GetBaselineModuleReaders());
 
                     Assert.Throws<ObjectDisposedException>(() => ((MetadataReaderProvider)moduleReader).GetMetadataReader());
 
@@ -1054,7 +1054,7 @@ class C1
                 Assert.Empty(editSession.DebuggingSession.NonRemappableRegions);
 
                 // deferred module readers tracked:
-                Assert.Same(moduleReader, editSession.DebuggingSession.Test_GetBaselineModuleReaders().Single());
+                Assert.Same(moduleReader, editSession.DebuggingSession.GetBaselineModuleReaders().Single());
 
                 // verify that baseline is added for both modules:
                 Assert.Same(newBaselineA1, editSession.DebuggingSession.Test_GetProjectEmitBaseline(projectA.Id));
@@ -1108,7 +1108,7 @@ class C1
                 Assert.Empty(editSession.DebuggingSession.NonRemappableRegions);
 
                 // module readers tracked:
-                Assert.Same(moduleReader, editSession.DebuggingSession.Test_GetBaselineModuleReaders().Single());
+                Assert.Same(moduleReader, editSession.DebuggingSession.GetBaselineModuleReaders().Single());
 
                 // verify that baseline is updated for both modules:
                 Assert.Same(newBaselineA2, editSession.DebuggingSession.Test_GetProjectEmitBaseline(projectA.Id));

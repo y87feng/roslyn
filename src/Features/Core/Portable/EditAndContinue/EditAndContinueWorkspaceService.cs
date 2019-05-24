@@ -1,10 +1,8 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -12,10 +10,9 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.ErrorReporting;
+using Microsoft.CodeAnalysis.Host.Mef;
 using Microsoft.CodeAnalysis.Internal.Log;
-using Microsoft.CodeAnalysis.MoveToNamespace;
 using Microsoft.CodeAnalysis.PooledObjects;
-using Microsoft.CodeAnalysis.SQLite.Interop;
 using Microsoft.CodeAnalysis.Text;
 using Roslyn.Utilities;
 
@@ -129,7 +126,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             Contract.ThrowIfNull(session, "Edit session has not started.");
 
             // then cancel all ongoing work bound to the session:
-            session.Cancellation.Cancel();
+            session.Cancel();
 
             // then clear all reported rude edits:
             _diagnosticService.Reanalyze(_workspace, documentIds: session.GetDocumentsWithReportedDiagnostics());
@@ -137,6 +134,8 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             _trackingService.EndTracking();
 
             _debuggingSessionTelemetry.LogEditSession(_editSessionTelemetry.GetDataAndClear());
+
+            session.Dispose();
         }
 
         public void EndDebuggingSession()
@@ -497,7 +496,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
         public void ReportApplyChangesException(string message)
         {
-            var descriptor = EditAndContinueDiagnosticDescriptors.GetDescriptor(EditAndContinueErrorCode.CantApplyChangesUnexpectedError);
+            var descriptor = EditAndContinueDiagnosticDescriptors.GetDescriptor(EditAndContinueErrorCode.CannotApplyChangesUnexpectedError);
 
             _emitDiagnosticsUpdateSource.ReportDiagnostics(
                 _workspace.CurrentSolution,

@@ -116,8 +116,8 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             }
         }
 
-        // test only
-        internal ImmutableArray<IDisposable> Test_GetBaselineModuleReaders()
+        // internal for testing
+        internal ImmutableArray<IDisposable> GetBaselineModuleReaders()
         {
             lock (_projectEmitBaselinesGuard)
             {
@@ -127,9 +127,9 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
         public void Dispose()
         {
-            lock (_projectEmitBaselinesGuard)
+            foreach (var reader in GetBaselineModuleReaders())
             {
-                _lazyBaselineModuleReaders?.ForEach(m => m.Dispose());
+                reader.Dispose();
             }
         }
 
@@ -200,7 +200,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                 }
             }
 
-            (Guid Mvid, Diagnostic Error) readMvid()
+            (Guid Mvid, Diagnostic Error) ReadMvid()
             {
                 var outputs = CompilationOutputsProvider.GetCompilationOutputs(projectId);
 
@@ -210,16 +210,16 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                 }
                 catch (Exception e) when (e is FileNotFoundException || e is DirectoryNotFoundException)
                 {
-                    return (Mvid: default, Error: null);
+                    return (Mvid: Guid.Empty, Error: null);
                 }
                 catch (Exception e)
                 {
                     var descriptor = EditAndContinueDiagnosticDescriptors.GetDescriptor(EditAndContinueErrorCode.ErrorReadingFile);
-                    return (Mvid: default, Error: Diagnostic.Create(descriptor, Location.None, new[] { outputs.AssemblyDisplayPath, e.Message }));
+                    return (Mvid: Guid.Empty, Error: Diagnostic.Create(descriptor, Location.None, new[] { outputs.AssemblyDisplayPath, e.Message }));
                 }
             }
 
-            var newId = await Task.Run(readMvid, cancellationToken).ConfigureAwait(false);
+            var newId = await Task.Run(ReadMvid, cancellationToken).ConfigureAwait(false);
 
             lock (_projectModuleIdsGuard)
             {

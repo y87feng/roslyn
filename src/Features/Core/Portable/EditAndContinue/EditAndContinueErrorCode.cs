@@ -5,7 +5,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
     internal enum EditAndContinueErrorCode
     {
         ErrorReadingFile = 1,
-        CantApplyChangesUnexpectedError = 2,
+        CannotApplyChangesUnexpectedError = 2,
         ChangesNotAppliedWhileRunning = 3,
         ChangesDisallowedWhileStoppedAtException = 4,
     }

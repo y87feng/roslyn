@@ -58,6 +58,10 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                 var data = new Data(this);
                 _rudeEdits.Clear();
                 _emitErrorIds.Clear();
+                _hadCompilationErrors = false;
+                _hadRudeEdits = false;
+                _hadValidChanges = false;
+                _hadValidInsignificantChanges = false;
                 return data;
             }
         }
