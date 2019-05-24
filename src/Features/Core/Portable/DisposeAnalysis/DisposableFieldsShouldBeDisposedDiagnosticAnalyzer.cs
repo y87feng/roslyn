@@ -30,7 +30,7 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
             isUnneccessary: false);
 
         public DisposableFieldsShouldBeDisposedDiagnosticAnalyzer()
-            : base(ImmutableArray.Create(s_disposableFieldsShouldBeDisposedRule), GeneratedCodeAnalysisFlags.None)
+            : base(ImmutableArray.Create(s_disposableFieldsShouldBeDisposedRule), GeneratedCodeAnalysisFlags.Analyze)
         {
         }
 

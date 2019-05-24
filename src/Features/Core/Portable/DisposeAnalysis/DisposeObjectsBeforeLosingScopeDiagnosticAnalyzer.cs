@@ -75,6 +75,11 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
 
             static bool DisposableCreationNeedsAnalysis(IOperation operation)
             {
+                // NOTE: This method has important performance optimizations to ensure
+                //       that we delay performing the expensive dataflow analysis as much as possible.
+                //       Removing any of the below optimizations can cause performance regressions.
+
+                // We do not need to analyze disposable creation wrapped within a using statement.
                 if (operation.Parent is IVariableInitializerOperation variableInitializer &&
                     variableInitializer.Parent is IVariableDeclaratorOperation variableDeclarator &&
                     variableDeclarator.Parent is IVariableDeclarationOperation variableDeclaration &&
@@ -85,6 +90,8 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
                     return false;
                 }
 
+                // We do not need to analyze disposable creation that is immediately assigned to a
+                // field/property and hence is escaped (not tracked by dispose analysis).
                 if (operation.Parent is ISimpleAssignmentOperation simpleAssignment &&
                     simpleAssignment.Value == operation &&
                     simpleAssignment.Target is IMemberReferenceOperation)
@@ -92,8 +99,12 @@ namespace Microsoft.CodeAnalysis.DisposeAnalysis
                     return false;
                 }
 
-                if (operation.Parent is IArgumentOperation &&
+                // We do not need to analyze disposable creation that is passed as non-ref/out argument
+                // to a method in metadata and hence is escaped (not tracked by dispose analysis).
+                if (operation.Parent is IArgumentOperation argumentOperation &&
+                    !argumentOperation.Parameter.IsRefOrOut() &&
                     (operation.Parent.Parent is IInvocationOperation invocation &&
+                     invocation.TargetMethod.MethodKind == MethodKind.Ordinary &&
                      !invocation.TargetMethod.IsFromSource() ||
                      operation.Parent.Parent is IObjectCreationOperation creation &&
                      !creation.Constructor.IsFromSource()))
