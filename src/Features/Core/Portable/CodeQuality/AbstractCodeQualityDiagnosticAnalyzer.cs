@@ -31,7 +31,7 @@ namespace Microsoft.CodeAnalysis.CodeQuality
 
         public abstract DiagnosticAnalyzerCategory GetAnalyzerCategory();
 
-        public virtual bool OpenFileOnly(Workspace workspace)
+        public bool OpenFileOnly(Workspace workspace)
             => false;
 
         protected static DiagnosticDescriptor CreateDescriptor(
