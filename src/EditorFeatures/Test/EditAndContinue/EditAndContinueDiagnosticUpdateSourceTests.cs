@@ -18,8 +18,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
         [Fact]
         public void ReportDiagnostics()
         {
-            var service = new DiagnosticService(AsynchronousOperationListenerProvider.NullProvider);
-            var source = new EditAndContinueDiagnosticUpdateSource(service);
+            var source = new EditAndContinueDiagnosticUpdateSource();
 
             var updates = new List<string>();
 
