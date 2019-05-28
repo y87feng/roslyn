@@ -103,12 +103,12 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             Contract.ThrowIfFalse(previousSession == null, "New debugging session can't be started until the existing one has ended.");
         }
 
-        public void StartEditSession(bool stoppedAtException)
+        public void StartEditSession()
         {
             var debuggingSession = _debuggingSession;
             Contract.ThrowIfNull(debuggingSession, "Edit session can only be started during debugging session");
 
-            var newSession = new EditSession(debuggingSession, _editSessionTelemetry, stoppedAtException);
+            var newSession = new EditSession(debuggingSession, _editSessionTelemetry);
 
             var previousSession = Interlocked.CompareExchange(ref _editSession, newSession, null);
             Contract.ThrowIfFalse(previousSession == null, "New edit session can't be started until the existing one has ended.");
@@ -212,30 +212,22 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     // the change blocks the UI when the user "continues".
                     debuggingSession.PrepareModuleForUpdate(mvid);
 
-                    // Check if EnC is allowed in the current state of the debugee.
-                    var debuggeeStateDiagnostics = editSession.GetDebugeeStateDiagnostics();
-
                     // Check if EnC is allowed for all loaded modules corresponding to the project.
                     var moduleDiagnostics = editSession.GetModuleDiagnostics(mvid, project.Name);
 
-                    if (!debuggeeStateDiagnostics.IsEmpty || !moduleDiagnostics.IsEmpty)
+                    if (!moduleDiagnostics.IsEmpty)
                     {
                         // track the document, so that we can refresh or clean diagnostics at the end of edit session:
                         editSession.TrackDocumentWithReportedDiagnostics(document.Id);
 
-                        var diagnosticsBuilder = ArrayBuilder<Diagnostic>.GetInstance();
                         var oldSyntaxTree = await oldDocument.GetSyntaxTreeAsync(cancellationToken).ConfigureAwait(false);
                         var newSyntaxTree = await document.GetSyntaxTreeAsync(cancellationToken).ConfigureAwait(false);
                         var textChanges = await GetDocumentTextChangesAsync(oldSyntaxTree, newSyntaxTree, cancellationToken).ConfigureAwait(false);
 
+                        var diagnosticsBuilder = ArrayBuilder<Diagnostic>.GetInstance();
                         foreach (var span in GetSpansInNewDocument(textChanges))
                         {
                             var location = Location.Create(newSyntaxTree, span);
-
-                            foreach (var diagnostic in debuggeeStateDiagnostics)
-                            {
-                                diagnosticsBuilder.Add(diagnostic.ToDiagnostic(location));
-                            }
 
                             foreach (var diagnostic in moduleDiagnostics)
                             {
@@ -404,7 +396,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             var editSession = _editSession;
 
             Contract.ThrowIfNull(editSession);
-            Contract.ThrowIfTrue(editSession.StoppedAtException);
 
             var pendingUpdate = Interlocked.Exchange(ref _pendingUpdate, null);
             Contract.ThrowIfNull(pendingUpdate);

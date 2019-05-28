@@ -100,7 +100,7 @@ namespace Microsoft.VisualStudio.LanguageServices.EditAndContinue
             bool stoppedAtException = kind == BreakStateKind.StoppedAtException;
 
             _debuggingService.OnBeforeDebuggingStateChanged(DebuggingState.Run, DebuggingState.Break);
-            _encService.StartEditSession(stoppedAtException);
+            _encService.StartEditSession();
         }
 
         public void ExitBreakState()

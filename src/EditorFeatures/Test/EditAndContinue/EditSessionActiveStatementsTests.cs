@@ -98,38 +98,31 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
 
             var exportProvider = exportProviderFactory.CreateExportProvider();
 
-            using (var workspace = TestWorkspace.CreateCSharp(
-                ActiveStatementsDescription.ClearTags(markedSource),
-                exportProvider: exportProvider))
+            using var workspace = TestWorkspace.CreateCSharp(ActiveStatementsDescription.ClearTags(markedSource), exportProvider: exportProvider);
+
+            if (adjustSolution != null)
             {
-                if (adjustSolution != null)
-                {
-                    workspace.ChangeSolution(adjustSolution(workspace.CurrentSolution));
-                }
-
-                var docsIds = from p in workspace.CurrentSolution.Projects
-                              from d in p.DocumentIds
-                              select d;
-
-                var activeStatementProvider = new TestActiveStatementProvider(activeStatements);
-                var mockDebuggeModuleProvider = new Mock<IDebuggeeModuleMetadataProvider>();
-                var mockCompilationOutputsProvider = new Mock<ICompilationOutputsProviderService>();
-
-                var debuggingSession = new DebuggingSession(workspace, mockDebuggeModuleProvider.Object, activeStatementProvider, mockCompilationOutputsProvider.Object);
-
-                debuggingSession.Test_SetNonRemappableRegions(nonRemappableRegions ?? ImmutableDictionary<ActiveMethodId, ImmutableArray<NonRemappableRegion>>.Empty);
-
-                var telemetry = new EditSessionTelemetry();
-
-                var editSession = new EditSession(
-                    debuggingSession,
-                    telemetry,
-                    stoppedAtException: false);
-
-                return (await editSession.BaseActiveStatements.GetValueAsync(CancellationToken.None).ConfigureAwait(false),
-                        await editSession.BaseActiveExceptionRegions.GetValueAsync(CancellationToken.None).ConfigureAwait(false),
-                        docsIds.ToImmutableArray());
+                workspace.ChangeSolution(adjustSolution(workspace.CurrentSolution));
             }
+
+            var docsIds = from p in workspace.CurrentSolution.Projects
+                          from d in p.DocumentIds
+                          select d;
+
+            var activeStatementProvider = new TestActiveStatementProvider(activeStatements);
+            var mockDebuggeModuleProvider = new Mock<IDebuggeeModuleMetadataProvider>();
+            var mockCompilationOutputsProvider = new Mock<ICompilationOutputsProviderService>();
+
+            var debuggingSession = new DebuggingSession(workspace, mockDebuggeModuleProvider.Object, activeStatementProvider, mockCompilationOutputsProvider.Object);
+
+            debuggingSession.Test_SetNonRemappableRegions(nonRemappableRegions ?? ImmutableDictionary<ActiveMethodId, ImmutableArray<NonRemappableRegion>>.Empty);
+
+            var telemetry = new EditSessionTelemetry();
+            var editSession = new EditSession(debuggingSession, telemetry);
+
+            return (await editSession.BaseActiveStatements.GetValueAsync(CancellationToken.None).ConfigureAwait(false),
+                    await editSession.BaseActiveExceptionRegions.GetValueAsync(CancellationToken.None).ConfigureAwait(false),
+                    docsIds.ToImmutableArray());
         }
 
         private static string Delete(string src, string marker)

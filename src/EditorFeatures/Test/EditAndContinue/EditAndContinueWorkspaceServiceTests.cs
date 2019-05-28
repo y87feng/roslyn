@@ -108,7 +108,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 _mockActiveStatementTrackingService.Verify(ts => ts.StartTracking(It.IsAny<EditSession>()), Times.Once());
 
                 service.EndEditSession();
@@ -284,7 +284,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
                 var service = CreateEditAndContinueService(workspace);
 
                 service.StartDebuggingSession();
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
 
                 // change the source:
                 var document1 = workspace.CurrentSolution.Projects.Single().Documents.Single();
@@ -302,47 +302,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
         }
 
         [Fact]
-        public async Task BreakMode_StoppedAtException()
-        {
-            var moduleFile = Temp.CreateFile().WriteAllBytes(TestResources.Basic.Members);
-
-            using (var workspace = TestWorkspace.CreateCSharp("class C1 { void M() { System.Console.WriteLine(1); } }"))
-            {
-                var project = workspace.CurrentSolution.Projects.Single();
-                _mockCompilationOutputsService.Outputs.Add(project.Id, new CompilationOutputFiles(moduleFile.Path));
-
-                var service = CreateEditAndContinueService(workspace);
-
-                service.StartDebuggingSession();
-
-                service.StartEditSession(stoppedAtException: true);
-                VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
-
-                // change the source:
-                var document1 = workspace.CurrentSolution.Projects.Single().Documents.Single();
-                workspace.ChangeDocument(document1.Id, SourceText.From("class C1 { void M() { System.Console.WriteLine(2); } }"));
-                var document2 = workspace.CurrentSolution.Projects.Single().Documents.Single();
-
-                var diagnostics = await service.GetDocumentDiagnosticsAsync(document2, CancellationToken.None).ConfigureAwait(false);
-                AssertEx.Equal(new[] { "ENC1004" }, diagnostics.Select(d => d.Id));
-
-                // validate solution update status and emit:
-                var solutionStatus = await service.GetSolutionUpdateStatusAsync(sourceFilePath: null, CancellationToken.None).ConfigureAwait(false);
-                Assert.Equal(SolutionUpdateStatus.Blocked, solutionStatus);
-
-                var (solutionStatusEmit, deltas) = await service.EmitSolutionUpdateAsync(CancellationToken.None).ConfigureAwait(false);
-                Assert.Equal(SolutionUpdateStatus.Blocked, solutionStatusEmit);
-                Assert.Empty(deltas);
-
-                service.EndEditSession();
-                VerifyReanalyzeInvocation(workspace, null, ImmutableArray.Create(document2.Id), false);
-
-                service.EndDebuggingSession();
-                VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
-            }
-        }
-
-        [Fact]
         public async Task BreakMode_ErrorReadingFile()
         {
             var moduleFile = Temp.CreateFile();
@@ -355,7 +314,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue.UnitTests
                 var service = CreateEditAndContinueService(workspace);
 
                 service.StartDebuggingSession();
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
 
                 // change the source:
                 var document1 = workspace.CurrentSolution.Projects.Single().Documents.Single();
@@ -461,7 +420,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
 
                 // change the source:
@@ -523,7 +482,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
 
                 // change the source (rude edit):
@@ -574,7 +533,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
 
                 // change the source (compilation error):
@@ -629,7 +588,7 @@ class C1
                 var service = CreateEditAndContinueService(workspace);
 
                 service.StartDebuggingSession();
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
 
                 // change C.cs to have a compilation error:
                 var projectC = workspace.CurrentSolution.GetProjectsByName("C").Single();
@@ -676,7 +635,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 var editSession = service.Test_GetEditSession();
                 VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
 
@@ -765,7 +724,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 var editSession = service.Test_GetEditSession();
                 VerifyReanalyzeInvocation(workspace, null, ImmutableArray<DocumentId>.Empty, false);
 
@@ -888,7 +847,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 var editSession = service.Test_GetEditSession();
 
                 // change the source (valid edit):
@@ -1012,7 +971,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 var editSession = service.Test_GetEditSession();
 
                 //
@@ -1065,7 +1024,7 @@ class C1
                 Assert.Equal(SolutionUpdateStatus.None, commitedUpdateSolutionStatus);
 
                 service.EndEditSession();
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
                 editSession = service.Test_GetEditSession();
 
                 //
@@ -1208,7 +1167,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
 
                 // change the source (valid edit):
                 var document1 = workspace.CurrentSolution.Projects.Single().Documents.Single();
@@ -1246,7 +1205,7 @@ class C1
 
                 service.StartDebuggingSession();
 
-                service.StartEditSession(stoppedAtException: false);
+                service.StartEditSession();
 
                 // change the source (valid edit):
                 var document1 = workspace.CurrentSolution.Projects.Single().Documents.Single();

@@ -24,7 +24,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         bool IsDebuggingSessionInProgress { get; }
 
         void StartDebuggingSession();
-        void StartEditSession(bool stoppedAtException);
+        void StartEditSession();
         void EndEditSession();
         void EndDebuggingSession();
 

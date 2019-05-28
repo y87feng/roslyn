@@ -27,11 +27,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
         internal readonly EditSessionTelemetry Telemetry;
 
         /// <summary>
-        /// Stopped at exception, an unwind is required before EnC is allowed. All edits are rude.
-        /// </summary>
-        internal readonly bool StoppedAtException;
-
-        /// <summary>
         /// The solution captured when entering the break state.
         /// </summary>
         internal readonly Solution BaseSolution;
@@ -79,7 +74,7 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
         private bool _changesApplied;
 
-        internal EditSession(DebuggingSession debuggingSession, EditSessionTelemetry telemetry, bool stoppedAtException)
+        internal EditSession(DebuggingSession debuggingSession, EditSessionTelemetry telemetry)
         {
             Debug.Assert(debuggingSession != null);
             Debug.Assert(telemetry != null);
@@ -93,7 +88,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
             BaseActiveStatements = new AsyncLazy<ActiveStatementsMap>(GetBaseActiveStatementsAsync, cacheResult: true);
             BaseActiveExceptionRegions = new AsyncLazy<ImmutableArray<ActiveStatementExceptionRegions>>(GetBaseActiveExceptionRegionsAsync, cacheResult: true);
-            StoppedAtException = stoppedAtException;
         }
 
         internal CancellationToken CancellationToken => _cancellationSource.Token;
@@ -419,12 +413,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
                     return SolutionUpdateStatus.None;
                 }
 
-                // short-circuit when stoped at exception (no need to analyze all projects):
-                if (StoppedAtException)
-                {
-                    return SolutionUpdateStatus.Blocked;
-                }
-
                 var projects = (sourceFilePath == null) ? solution.Projects :
                     from documentId in solution.GetDocumentIdsWithFilePath(sourceFilePath)
                     select solution.GetDocument(documentId).Project;
@@ -503,8 +491,6 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
             List<(DocumentId DocumentId, AsyncLazy<DocumentAnalysisResults> Results)> documentAnalyses,
             CancellationToken cancellationToken)
         {
-            Debug.Assert(!StoppedAtException);
-
             if (documentAnalyses.Count == 0)
             {
                 return ProjectAnalysisSummary.NoChanges;
@@ -595,23 +581,11 @@ namespace Microsoft.CodeAnalysis.EditAndContinue
 
         internal ImmutableArray<LocationlessDiagnostic> GetDebugeeStateDiagnostics()
         {
-            // all edits are disallowed when stopped at exception:
-            if (StoppedAtException)
-            {
-                var descriptor = EditAndContinueDiagnosticDescriptors.GetDescriptor(EditAndContinueErrorCode.ChangesDisallowedWhileStoppedAtException);
-                return ImmutableArray.Create(new LocationlessDiagnostic(descriptor, Array.Empty<object>()));
-            }
-
             return ImmutableArray<LocationlessDiagnostic>.Empty;
         }
 
         public async Task<SolutionUpdate> EmitSolutionUpdateAsync(Solution solution, CancellationToken cancellationToken)
         {
-            if (StoppedAtException)
-            {
-                return SolutionUpdate.Blocked();
-            }
-
             var deltas = ArrayBuilder<Deltas>.GetInstance();
             var emitBaselines = ArrayBuilder<(ProjectId, EmitBaseline)>.GetInstance();
             var moduleReaders = ArrayBuilder<IDisposable>.GetInstance();
