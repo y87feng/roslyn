@@ -26,6 +26,10 @@ Namespace Microsoft.CodeAnalysis.Editor.UnitTests.IntelliSense
             End Get
         End Property
 
+        Private Shared Sub DisableImportCompletionProvider(workspace As Workspace)
+            workspace.Options = workspace.Options.WithChangedOption(CompletionOptions.ShowItemsFromUnimportedNamespaces, LanguageNames.CSharp, False)
+        End Sub
+
         <WorkItem(541201, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/541201")>
         <MemberData(NameOf(AllCompletionImplementations))>
         <WpfTheory, Trait(Traits.Feature, Traits.Features.Completion)>
@@ -3832,14 +3836,94 @@ class C
             End Using
         End Function
 
+        <MemberData(NameOf(AllCompletionImplementations))>
+        <WpfTheory, Trait(Traits.Feature, Traits.Features.Completion)>
+        Public Async Function TestSwitchBetweenBlockingAndNoBlockOnCompletion(completionImplementation As CompletionImplementation) As Task
+            Dim tcs = New TaskCompletionSource(Of Boolean)
+            Dim provider = New TaskControlledCompletionProvider(tcs.Task)
+            Using state = TestStateFactory.CreateCSharpTestState(completionImplementation,
+                              <Document>
+                                  using $$
+                              </Document>, {provider})
+
+#Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
+                Task.Run(Function()
+                             Task.Delay(TimeSpan.FromSeconds(10))
+                             tcs.SetResult(True)
+                             Return True
+                         End Function)
+#Enable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
+
+                state.SendTypeChars("Sys.")
+                Await state.WaitForAsynchronousOperationsAsync()
+                Await state.AssertCompletionSession()
+                Assert.Contains("System.", state.GetLineTextFromCaretPosition())
+
+                ' reset the input
+                For i As Integer = 1 To "System.".Length
+                    state.SendBackspace()
+                Next
+                state.SendEscape()
+
+                Await state.WaitForAsynchronousOperationsAsync()
+
+                ' reset the task
+                tcs = New TaskCompletionSource(Of Boolean)
+                provider.UpdateTask(tcs.Task)
+
+                ' Switch to the non-blocking mode
+                state.Workspace.Options = state.Workspace.Options.WithChangedOption(
+                    CompletionOptions.BlockForCompletionItems, LanguageNames.CSharp, False)
+
+                ' re-use of TestNoBlockOnCompletionItems1
+                state.SendTypeChars("Sys.")
+                Await state.WaitForAsynchronousOperationsAsync()
+                Await state.AssertNoCompletionSession()
+                Assert.Contains("Sys.", state.GetLineTextFromCaretPosition())
+                tcs.SetResult(True)
+
+                For i As Integer = 1 To "Sys.".Length
+                    state.SendBackspace()
+                Next
+                state.SendEscape()
+
+                Await state.WaitForAsynchronousOperationsAsync()
+
+                ' reset the task
+                tcs = New TaskCompletionSource(Of Boolean)
+                provider.UpdateTask(tcs.Task)
+
+                ' Switch to the blocking mode
+                state.Workspace.Options = state.Workspace.Options.WithChangedOption(
+                    CompletionOptions.BlockForCompletionItems, LanguageNames.CSharp, True)
+
+#Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
+                Task.Run(Function()
+                             Task.Delay(TimeSpan.FromSeconds(10))
+                             tcs.SetResult(True)
+                             Return True
+                         End Function)
+#Enable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
+
+                state.SendTypeChars("Sys.")
+                Await state.WaitForAsynchronousOperationsAsync()
+                Await state.AssertCompletionSession()
+                Assert.Contains("System.", state.GetLineTextFromCaretPosition())
+            End Using
+        End Function
+
         Private Class TaskControlledCompletionProvider
             Inherits CompletionProvider
 
-            Private ReadOnly _task As Task
+            Private _task As Task
 
             Public Event ProviderCalled()
 
             Public Sub New(task As Task)
+                _task = task
+            End Sub
+
+            Public Sub UpdateTask(task As Task)
                 _task = task
             End Sub
 
@@ -3865,6 +3949,8 @@ class C
     }
 }
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendInvokeCompletionList()
                 Await state.WaitForAsynchronousOperationsAsync()
@@ -3900,6 +3986,8 @@ class C
     }
 }
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendInvokeCompletionList()
                 Await state.WaitForAsynchronousOperationsAsync()
@@ -3938,6 +4026,8 @@ class C
 }
             ]]></Document>)
 
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendInvokeCompletionList()
                 Await state.WaitForAsynchronousOperationsAsync()
                 Dim filters = state.GetCompletionItemFilters()
@@ -3974,6 +4064,8 @@ class C
     }
 }
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendInvokeCompletionList()
                 Await state.WaitForAsynchronousOperationsAsync()

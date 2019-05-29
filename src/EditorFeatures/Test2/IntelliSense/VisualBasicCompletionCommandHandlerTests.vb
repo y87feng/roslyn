@@ -1,5 +1,6 @@
 ﻿' Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+Imports System.Composition
 Imports System.Threading
 Imports Microsoft.CodeAnalysis.Completion
 Imports Microsoft.CodeAnalysis.Editor.UnitTests.Extensions
@@ -21,6 +22,10 @@ Namespace Microsoft.CodeAnalysis.Editor.UnitTests.IntelliSense
                 Return TestStateFactory.GetAllCompletionImplementations()
             End Get
         End Property
+
+        Private Shared Sub DisableImportCompletionProvider(workspace As Workspace)
+            workspace.Options = workspace.Options.WithChangedOption(CompletionOptions.ShowItemsFromUnimportedNamespaces, LanguageNames.VisualBasic, False)
+        End Sub
 
         <WorkItem(546208, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/546208")>
         <MemberData(NameOf(AllCompletionImplementations))>
@@ -1305,6 +1310,8 @@ Module Program
     End Sub
 End Module|}          </Document>)
 
+                DisableImportCompletionProvider(state.Workspace)
+
                 Dim subjectDocument = state.Workspace.Documents.First()
                 Dim firstProjection = state.Workspace.CreateProjectionBufferDocument(
                     <Document>
@@ -1792,6 +1799,9 @@ Class Test
 End Class
 
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendTypeChars("selec")
                 Await state.WaitForAsynchronousOperationsAsync()
                 Assert.Equal(state.GetCompletionItems().Count, 2)
@@ -2114,6 +2124,9 @@ Public Class Class2
         $$
     End Sub
 End Class</Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendInvokeCompletionList()
                 Await state.AssertNoCompletionSession()
             End Using
@@ -3049,6 +3062,8 @@ Module Module1
 End Module
 ]]></Document>)
 
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendInvokeCompletionList()
                 Await state.WaitForAsynchronousOperationsAsync()
                 Dim psi = state.GetCompletionItems().Where(Function(i) i.DisplayText.Contains("ProcessStartInfo")).ToArray()
@@ -3092,6 +3107,8 @@ Class C
     End Sub
 End Class
 ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendBackspace()
                 Await state.AssertSelectedCompletionItem("x", isSoftSelected:=True)
@@ -3146,6 +3163,10 @@ End Class
         <ExportLanguageService(GetType(ISnippetInfoService), LanguageNames.VisualBasic), System.Composition.Shared>
         Friend Class MockSnippetInfoService
             Implements ISnippetInfoService
+
+            <ImportingConstructor>
+            Public Sub New()
+            End Sub
 
             Public Function GetSnippetsAsync_NonBlocking() As IEnumerable(Of SnippetInfo) Implements ISnippetInfoService.GetSnippetsIfAvailable
                 Return SpecializedCollections.SingletonEnumerable(New SnippetInfo("Shortcut", "Title", "Description", "Path"))
