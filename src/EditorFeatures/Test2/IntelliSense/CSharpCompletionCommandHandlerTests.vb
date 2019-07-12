@@ -26,6 +26,10 @@ Namespace Microsoft.CodeAnalysis.Editor.UnitTests.IntelliSense
             End Get
         End Property
 
+        Private Shared Sub DisableImportCompletionProvider(workspace As Workspace)
+            workspace.Options = workspace.Options.WithChangedOption(CompletionOptions.ShowItemsFromUnimportedNamespaces, LanguageNames.CSharp, False)
+        End Sub
+
         <WorkItem(541201, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/541201")>
         <MemberData(NameOf(AllCompletionImplementations))>
         <WpfTheory, Trait(Traits.Feature, Traits.Features.Completion)>
@@ -3977,6 +3981,8 @@ class C
 }
             ]]></Document>)
 
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendInvokeCompletionList()
                 Await state.WaitForUIRenderedAsync()
 
@@ -4011,6 +4017,8 @@ class C
     }
 }
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendInvokeCompletionList()
                 Await state.WaitForUIRenderedAsync()
@@ -4048,6 +4056,8 @@ class C
 }
             ]]></Document>)
 
+                DisableImportCompletionProvider(state.Workspace)
+
                 state.SendInvokeCompletionList()
                 Await state.WaitForUIRenderedAsync()
                 Dim filters = state.GetCompletionItemFilters()
@@ -4083,6 +4093,8 @@ class C
     }
 }
             ]]></Document>)
+
+                DisableImportCompletionProvider(state.Workspace)
 
                 state.SendInvokeCompletionList()
                 Await state.WaitForUIRenderedAsync()
