@@ -135,6 +135,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundExpression CreateImplicitNewConversion(SyntaxNode syntax, BoundExpression source, Conversion conversion, bool isCast, TypeSymbol destination, DiagnosticBag diagnostics)
         {
+            Debug.Assert(conversion.IsNew);
+
             var node = (UnboundObjectCreationExpression)source;
 
             TypeSymbol type = destination.StrippedType();
@@ -142,20 +144,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 ? BindInitializerExpression(syntax: node.InitializerOpt, type: type, typeSyntax: node.Syntax, diagnostics)
                 : null;
 
-            var arguments = AnalyzedArguments.GetInstance();
+            var arguments = AnalyzedArguments.GetInstance(node.Arguments, node.ArgumentRefKindsOpt, node.ArgumentNamesOpt);
             try
             {
-                arguments.Arguments.AddRange(node.Arguments);
-                if (!node.ArgumentRefKindsOpt.IsDefault)
-                {
-                    arguments.RefKinds.AddRange(node.ArgumentRefKindsOpt);
-                }
-
-                if (!node.ArgumentNamesOpt.IsDefault)
-                {
-                    arguments.Names.AddRange(node.ArgumentNamesOpt);
-                }
-
                 if (ReportBadTargetType(syntax, type, diagnostics))
                 {
                     return MakeBadExpressionForObjectCreation(node.Syntax, destination, boundInitializerOpt, arguments);
@@ -173,8 +164,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                             type: (NamedTypeSymbol)type,
                             arguments,
                             diagnostics,
-                            boundInitializerOpt,
-                            forTargetTypedNew: true);
+                            boundInitializerOpt);
                         break;
 
                     case TypeKind.TypeParameter:
@@ -186,8 +176,17 @@ namespace Microsoft.CodeAnalysis.CSharp
                             diagnostics);
                         break;
 
-                    default:
-                        throw ExceptionUtilities.UnexpectedValue(type.Kind);
+                    case TypeKind.Delegate:
+                        result = BindDelegateCreationExpression(
+                            node.Syntax,
+                            type: (NamedTypeSymbol)type,
+                            arguments,
+                            node.InitializerOpt,
+                            diagnostics);
+                        break;
+
+                    case var value:
+                        throw ExceptionUtilities.UnexpectedValue(value);
                 }
 
                 if (destination.IsNullableType())
@@ -202,7 +201,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                         conversion: new Conversion(ConversionKind.ImplicitNullable, Conversion.IdentityUnderlying),
                         @checked: false,
                         explicitCastInCode: isCast,
-                        constantValueOpt: null, // A "target-typed new" would never produce a constant.
+                        result.ConstantValue,
                         type: destination);
                 }
 
@@ -220,9 +219,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 case TypeKind.Array:
                 case TypeKind.Enum:
-                case TypeKind.Delegate:
                 case TypeKind.Interface:
-                    Error(diagnostics, ErrorCode.ERR_BadTargetTypeForNew, syntax, type);
+                    Error(diagnostics, ErrorCode.ERR_IllegalTargetTypeForNew, syntax, type);
                     return true;
 
                 case TypeKind.Pointer:
@@ -233,12 +231,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                     Error(diagnostics, ErrorCode.ERR_NoConstructors, syntax, type);
                     return true;
 
-                case TypeKind.Struct when type.IsTupleType:
-                    Error(diagnostics, ErrorCode.ERR_NewWithTupleTypeSyntax, syntax, type);
-                    return true;
-
                 case TypeKind.Struct:
                 case TypeKind.Class:
+                case TypeKind.Delegate:
                 case TypeKind.TypeParameter:
                     return false;
 

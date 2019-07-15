@@ -1486,12 +1486,12 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         ERR_NoRefOutWhenRefOnly = 8308,
         ERR_NoNetModuleOutputWhenRefOutOrRefOnly = 8309,
-        ERR_BadOpOnNullOrDefault = 8310,
+        ERR_BadOpOnTypelessExpression = 8310,
         ERR_BadDynamicMethodArgDefaultLiteral = 8311,
         ERR_DefaultLiteralNotValid = 8312,
         ERR_DefaultInSwitch = 8313,
         ERR_PatternWrongGenericTypeInVersion = 8314,
-        ERR_AmbigBinaryOpsOnDefault = 8315,
+        ERR_AmbigBinaryOpsOnTypelessExpression = 8315,
 
         #endregion diagnostics introduced for C# 7.1
 
@@ -1582,9 +1582,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         #region diagnostics introduced for C# 8.0
         ERR_FeatureNotAvailableInVersion8 = 8400,
 
+        // PROTOTYPE(target-typed-new): compact error codes
         ERR_TypelessNewInAs = 9365,
-        ERR_BadTargetTypeForNew = 9366,
-        ERR_DefaultValueTypeCtorInTargetTypedNew = 9367,
+        ERR_IllegalTargetTypeForNew = 9366,
+        ERR_BadDynamicMethodArgTypelessNew = 9368,
+        ERR_TypelessNewNotValid = 9369,
         #endregion diagnostics introduced for C# 8.0
     }
     // Note: you will need to re-generate compiler code after adding warnings (build\scripts\generate-compiler-code.cmd)

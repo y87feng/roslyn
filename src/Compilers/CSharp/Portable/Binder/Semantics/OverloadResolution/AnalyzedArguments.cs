@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.PooledObjects;
@@ -125,6 +127,26 @@ namespace Microsoft.CodeAnalysis.CSharp
         public static AnalyzedArguments GetInstance()
         {
             return Pool.Allocate();
+        }
+
+        public static AnalyzedArguments GetInstance(
+            ImmutableArray<BoundExpression> arguments,
+            ImmutableArray<RefKind> argumentRefKindsOpt,
+            ImmutableArray<IdentifierNameSyntax> argumentNamesOpt)
+        {
+            var instance = GetInstance();
+            instance.Arguments.AddRange(arguments);
+            if (!argumentRefKindsOpt.IsDefault)
+            {
+                instance.RefKinds.AddRange(argumentRefKindsOpt);
+            }
+
+            if (!argumentNamesOpt.IsDefault)
+            {
+                instance.Names.AddRange(argumentNamesOpt);
+            }
+
+            return instance;
         }
 
         public void Free()

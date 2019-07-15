@@ -1200,14 +1200,16 @@ class C
         System.Console.Write(default == (default, default));
     }
 }";
+            // PROTOTYPE(target-typed-new): The last error is incorrect. Both operands are typeless.
+            // PROTOTYPE(target-typed-new): We should check for null on `operand.Type` in `ReportBinaryOperatorError`
             var comp = CreateCompilation(source, options: TestOptions.DebugExe);
             comp.VerifyDiagnostics(
                 // (6,30): error CS8315: Operator '==' is ambiguous on operands 'default' and 'default'
                 //         System.Console.Write((default, default) == (default, default));
-                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnDefault, "(default, default) == (default, default)").WithArguments("==").WithLocation(6, 30),
+                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnTypelessExpression, "(default, default) == (default, default)").WithArguments("==", "default", "default").WithLocation(6, 30),
                 // (6,30): error CS8315: Operator '==' is ambiguous on operands 'default' and 'default'
                 //         System.Console.Write((default, default) == (default, default));
-                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnDefault, "(default, default) == (default, default)").WithArguments("==").WithLocation(6, 30),
+                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnTypelessExpression, "(default, default) == (default, default)").WithArguments("==", "default", "default").WithLocation(6, 30),
                 // (7,30): error CS0034: Operator '==' is ambiguous on operands of type 'default' and '(default, default)'
                 //         System.Console.Write(default == (default, default));
                 Diagnostic(ErrorCode.ERR_AmbigBinaryOps, "default == (default, default)").WithArguments("==", "default", "(default, default)").WithLocation(7, 30)
@@ -1251,10 +1253,10 @@ class C
             comp.VerifyDiagnostics(
                 // (6,30): error CS8315: Operator '==' is ambiguous on operands 'default' and 'default'
                 //         System.Console.Write((null, (default, default)) == (null, (default, default)));
-                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnDefault, "(null, (default, default)) == (null, (default, default))").WithArguments("==").WithLocation(6, 30),
+                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnTypelessExpression, "(null, (default, default)) == (null, (default, default))").WithArguments("==", "default", "default").WithLocation(6, 30),
                 // (6,30): error CS8315: Operator '==' is ambiguous on operands 'default' and 'default'
                 //         System.Console.Write((null, (default, default)) == (null, (default, default)));
-                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnDefault, "(null, (default, default)) == (null, (default, default))").WithArguments("==").WithLocation(6, 30)
+                Diagnostic(ErrorCode.ERR_AmbigBinaryOpsOnTypelessExpression, "(null, (default, default)) == (null, (default, default))").WithArguments("==", "default", "default").WithLocation(6, 30)
                 );
         }
 
