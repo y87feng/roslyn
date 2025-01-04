@@ -8,6 +8,7 @@ using System;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Test.Utilities;
 using Microsoft.CodeAnalysis.Text;
@@ -204,5 +205,224 @@ namespace Microsoft.CodeAnalysis.UnitTests
             SolutionTestHelpers.TestListProperty(instance, (old, value) => old.WithMetadataReferences(value), opt => opt.MetadataReferences, (MetadataReference)new TestMetadataReference(), allowDuplicates: false);
             SolutionTestHelpers.TestListProperty(instance, (old, value) => old.WithProjectReferences(value), opt => opt.ProjectReferences, new ProjectReference(projectId), allowDuplicates: false);
         }
+
+
+        // ***************** GPT-4o generated tests *******************
+
+        [Fact]
+        public void Create_Handles_NullOptionalParameters()
+        {
+            var pid = ProjectId.CreateNewId();
+            var projectInfo = ProjectInfo.Create(
+                id: pid,
+                version: VersionStamp.Default,
+                name: "TestProject",
+                assemblyName: "TestAssembly",
+                language: "C#",
+                filePath: null,
+                outputFilePath: null,
+                compilationOptions: null,
+                parseOptions: null,
+                documents: null,
+                projectReferences: null,
+                metadataReferences: null,
+                analyzerReferences: null,
+                additionalDocuments: null,
+                outputRefFilePath: null);
+
+            Assert.Null(projectInfo.FilePath);
+            Assert.Null(projectInfo.OutputFilePath);
+            Assert.Null(projectInfo.CompilationOptions);
+            Assert.Null(projectInfo.ParseOptions);
+            Assert.Empty(projectInfo.Documents);
+            Assert.Empty(projectInfo.ProjectReferences);
+            Assert.Empty(projectInfo.MetadataReferences);
+            Assert.Empty(projectInfo.AnalyzerReferences);
+            Assert.Empty(projectInfo.AdditionalDocuments);
+        }
+
+        [Fact]
+        public void Create_Sets_OutputRefFilePath()
+        {
+            var pid = ProjectId.CreateNewId();
+            var projectInfo = ProjectInfo.Create(
+                id: pid,
+                version: VersionStamp.Default,
+                name: "TestProject",
+                assemblyName: "TestAssembly",
+                language: "C#",
+                outputRefFilePath: "testOutputRefPath.dll");
+
+            Assert.Equal("testOutputRefPath.dll", projectInfo.OutputRefFilePath);
+        }
+
+        [Fact]
+        public void Create_Handles_SubmissionProjects()
+        {
+            var pid = ProjectId.CreateNewId();
+            var projectInfo = ProjectInfo.Create(
+                id: pid,
+                version: VersionStamp.Default,
+                name: "SubmissionProject",
+                assemblyName: "SubmissionAssembly",
+                language: "C#",
+                isSubmission: true);
+
+            Assert.True(projectInfo.IsSubmission);
+        }
+
+        [Fact]
+        public void Create_Stores_HostObjectType()
+        {
+            var pid = ProjectId.CreateNewId();
+            var projectInfo = ProjectInfo.Create(
+                id: pid,
+                version: VersionStamp.Default,
+                name: "TestProject",
+                assemblyName: "TestAssembly",
+                language: "C#",
+                hostObjectType: typeof(string));
+
+            Assert.Equal(typeof(string), projectInfo.HostObjectType);
+        }
+
+        [Fact]
+        public void Create_Throws_For_InvalidDocuments()
+        {
+            var pid = ProjectId.CreateNewId();
+            var documentInfo = DocumentInfo.Create(DocumentId.CreateNewId(pid), "TestDocument");
+
+            Assert.Throws<ArgumentNullException>(() =>
+                ProjectInfo.Create(pid, VersionStamp.Default, "TestProject", "TestAssembly", "C#", documents: new[] { null! }));
+
+            Assert.Throws<ArgumentException>(() =>
+                ProjectInfo.Create(pid, VersionStamp.Default, "TestProject", "TestAssembly", "C#", documents: new[] { documentInfo, documentInfo }));
+        }
+
+        [Fact]
+        public void Create_Handles_CustomCompilationAndParseOptions()
+        {
+            var pid = ProjectId.CreateNewId();
+            var compilationOptions = new CSharpCompilationOptions(OutputKind.ConsoleApplication);
+            var parseOptions = new CSharpParseOptions();
+
+            var projectInfo = ProjectInfo.Create(
+                id: pid,
+                version: VersionStamp.Default,
+                name: "TestProject",
+                assemblyName: "TestAssembly",
+                language: "C#",
+                compilationOptions: compilationOptions,
+                parseOptions: parseOptions);
+
+            Assert.Same(compilationOptions, projectInfo.CompilationOptions);
+            Assert.Same(parseOptions, projectInfo.ParseOptions);
+        }
+        // ***************** End of GPT-4o generated tests ****************
+
+        // ***************** Sonnet 3.5 generated tests *******************
+        [Fact]
+        public void Create_WithCompilationAndParseOptions()
+        {
+            var pid = ProjectId.CreateNewId();
+            var version = VersionStamp.Default;
+            var compilationOptions = new TestCompilationOptions();
+            var parseOptions = new TestParseOptions();
+
+            var info = ProjectInfo.Create(
+                pid, version, "proj", "assembly", "C#",
+                compilationOptions: compilationOptions,
+                parseOptions: parseOptions);
+
+            Assert.Same(compilationOptions, info.CompilationOptions);
+            Assert.Same(parseOptions, info.ParseOptions);
+        }
+
+        [Fact]
+        public void Create_WithHostObjectType()
+        {
+            var pid = ProjectId.CreateNewId();
+            var version = VersionStamp.Default;
+            var hostType = typeof(string);
+
+            var info = ProjectInfo.Create(
+                pid, version, "proj", "assembly", "C#",
+                hostObjectType: hostType);
+
+            Assert.Same(hostType, info.HostObjectType);
+        }
+
+        [Fact]
+        public void Create_WithOutputRefFilePath()
+        {
+            var pid = ProjectId.CreateNewId();
+            var version = VersionStamp.Default;
+            var outputRefPath = @"C:\test\ref.dll";
+
+            var info = ProjectInfo.Create(
+                pid, version, "proj", "assembly", "C#",
+                outputRefFilePath: outputRefPath);
+
+            Assert.Equal(outputRefPath, info.OutputRefFilePath);
+        }
+
+        [Fact]
+        public void Create_WithAllOptionalParameters()
+        {
+            var pid = ProjectId.CreateNewId();
+            var version = VersionStamp.Default;
+            var filePath = @"C:\test\proj.csproj";
+            var outputPath = @"C:\test\output.dll";
+            var outputRefPath = @"C:\test\ref.dll";
+            var compilationOptions = new TestCompilationOptions();
+            var parseOptions = new TestParseOptions();
+            var documentInfo = DocumentInfo.Create(DocumentId.CreateNewId(pid), "doc");
+            var projectReference = new ProjectReference(ProjectId.CreateNewId());
+            var metadataReference = new TestMetadataReference();
+            var analyzerReference = new TestAnalyzerReference();
+            var hostType = typeof(string);
+
+            var info = ProjectInfo.Create(
+                pid, version, "proj", "assembly", "C#",
+                filePath: filePath,
+                outputFilePath: outputPath,
+                outputRefFilePath: outputRefPath,
+                compilationOptions: compilationOptions,
+                parseOptions: parseOptions,
+                documents: [documentInfo],
+                projectReferences: [projectReference],
+                metadataReferences: [metadataReference],
+                analyzerReferences: [analyzerReference],
+                additionalDocuments: [documentInfo],
+                isSubmission: true,
+                hostObjectType: hostType);
+
+            Assert.Equal(filePath, info.FilePath);
+            Assert.Equal(outputPath, info.OutputFilePath);
+            Assert.Equal(outputRefPath, info.OutputRefFilePath);
+            Assert.Same(compilationOptions, info.CompilationOptions);
+            Assert.Same(parseOptions, info.ParseOptions);
+            Assert.Same(documentInfo, ((ImmutableArray<DocumentInfo>)info.Documents).Single());
+            Assert.Same(projectReference, ((ImmutableArray<ProjectReference>)info.ProjectReferences).Single());
+            Assert.Same(metadataReference, ((ImmutableArray<MetadataReference>)info.MetadataReferences).Single());
+            Assert.Same(analyzerReference, ((ImmutableArray<AnalyzerReference>)info.AnalyzerReferences).Single());
+            Assert.Same(documentInfo, ((ImmutableArray<DocumentInfo>)info.AdditionalDocuments).Single());
+            Assert.True(info.IsSubmission);
+            Assert.Same(hostType, info.HostObjectType);
+        }
+
+        [Fact]
+        public void Create_WithSubmissionFlag()
+        {
+            var pid = ProjectId.CreateNewId();
+            var version = VersionStamp.Default;
+
+            var info = ProjectInfo.Create(
+                pid, version, "proj", "assembly", "C#",
+                isSubmission: true);
+
+            Assert.True(info.IsSubmission);
+        }
+        // ***************** End of Sonnet 3.5 generated tests **************
     }
 }
