@@ -5,9 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO.Hashing;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -88,6 +86,259 @@ public class Sampl$$eClass()
                 @"
 {
     ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""public class SampleClass()\r\n{\r\n}""} ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        // *********** GPT-4o Generated Tests *********** //
+        [Fact]
+        public async Task VerifyNoDefinitionLocations()
+        {
+            var markup = @"public class$$ SampleClass { }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyNoReferenceLocations()
+        {
+            var markup = @"public class SampleClass { public void $$Method() { } }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyMixedDefinitionsAndReferences()
+        {
+            var markup = @"public class Sample$$Class { public void Method() { } }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{ ""definition"": [ { ""Item1"": ""test1.cs"", ""Item2"": ""public class SampleClass { public void Method() { } }"" } ] }",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyMaxDefinitionsExceeded()
+        {
+            var markup = string.Concat(Enumerable.Repeat(@"public class $$SampleClass { }\n", 15));
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyNullDocumentationComments()
+        {
+            var markup = @"public class $$SampleClass { }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyInvalidSyntax()
+        {
+            var markup = @"public class $$SampleClass {";
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyLargeContext()
+        {
+            var markup = @"public class $$SampleClass { public void Method() { for (int i = 0; i < 100; i++) { Console.WriteLine(i); } } }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{ ""definition"": [ { ""Item1"": ""test1.cs"", ""Item2"": ""public class SampleClass { public void Method() { for (int i = 0; i < 100; i++) { Console.WriteLine(i); } } }"" } ] }",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyNestedSyntax()
+        {
+            var markup = @"public class $$SampleClass { public void Method() { if (true) { Console.WriteLine(); } } }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{ ""definition"": [ { ""Item1"": ""test1.cs"", ""Item2"": ""public class SampleClass { public void Method() { if (true) { Console.WriteLine(); } } }"" } ] }",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyMultipleFiles()
+        {
+            var markup = @"public class $$SampleClass { public void Method() { } }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{ ""definition"": [ { ""Item1"": ""test1.cs"", ""Item2"": ""public class SampleClass { public void Method() { } }"" } ] }",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyMissingDocuments()
+        {
+            var markup = @"public class $$SampleClass { }";
+            await VerifyGetRenameContextAsync(
+                markup,
+                "{}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        // *********************************** //
+
+        // *********** Sonnet 3.5 Generated Tests *********** //
+        [Fact]
+        public async Task VerifyReferencesCollection()
+        {
+            var markup = @"
+public class Sample$$Class
+{
+    public void Method()
+    {
+        var obj = new SampleClass();
+        obj = new SampleClass();
+    }
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""public class SampleClass\r\n{\r\n    public void Method()\r\n    {\r\n        var obj = new SampleClass();\r\n        obj = new SampleClass();\r\n    }\r\n}""} ],
+    ""reference"" : [ 
+        {""Item1"":""test1.cs"", ""Item2"":""        var obj = new SampleClass();\r\n        obj = new SampleClass();""} 
+    ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyDocumentationComments()
+        {
+            var markup = @"
+/// <summary>
+/// Sample class description
+/// </summary>
+public class Sample$$Class
+{
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""/// <summary>\r\n/// Sample class description\r\n/// </summary>\r\npublic class SampleClass\r\n{\r\n}""} ],
+    ""documentation"" : [ {""Item1"":""test1.cs"", ""Item2"":""<summary>\r\nSample class description\r\n</summary>""} ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyLargeSpanTrimming()
+        {
+            var markup = @"
+public class Other 
+{
+    private void Method1() { }
+    private void Method2() { }
+}
+
+public class Sample$$Class
+{
+    private void Method3() { }
+    private void Method4() { }
+    private void Method5() { }
+}
+
+public class Another
+{
+    private void Method6() { }
+    private void Method7() { }
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""public class SampleClass\r\n{\r\n    private void Method3() { }\r\n    private void Method4() { }\r\n    private void Method5() { }\r\n}""} ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyMultipleDefinitions()
+        {
+            var markup = @"
+public partial class Sample$$Class
+{
+    private void Method1() { }
+}
+
+public partial class SampleClass
+{
+    private void Method2() { }
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ 
+        {""Item1"":""test1.cs"", ""Item2"":""public partial class SampleClass\r\n{\r\n    private void Method1() { }\r\n}""}, 
+        {""Item1"":""test1.cs"", ""Item2"":""public partial class SampleClass\r\n{\r\n    private void Method2() { }\r\n}""} 
+    ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyBoundarySpans()
+        {
+            var markup = @"using System;
+
+public class Sample$$Class
+{
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""public class SampleClass\r\n{\r\n}""} ]
+}",
+                new SymbolRenameOptions(),
+                CancellationToken.None);
+        }
+
+        [Fact]
+        public async Task VerifyLocalVariableRename()
+        {
+            var markup = @"
+public class Test
+{
+    public void Method()
+    {
+        int sample$$Variable = 42;
+        Console.WriteLine(sampleVariable);
+    }
+}";
+            await VerifyGetRenameContextAsync(
+                markup,
+                @"{
+    ""definition"" : [ {""Item1"":""test1.cs"", ""Item2"":""        int sampleVariable = 42;\r\n        Console.WriteLine(sampleVariable);""} ],
+    ""reference"" : [ {""Item1"":""test1.cs"", ""Item2"":""        Console.WriteLine(sampleVariable);""} ]
 }",
                 new SymbolRenameOptions(),
                 CancellationToken.None);
