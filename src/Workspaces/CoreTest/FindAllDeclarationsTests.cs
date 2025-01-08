@@ -708,5 +708,219 @@ End Class
             Assert.Equal(1, foundDeclarations.Count());
             Assert.False(foundDeclarations.Any(decl => decl == null));
         }
+
+        // ************ GPT-4o generated tests ************
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_EmptySolution()
+        {
+            using var workspace = CreateWorkspace();
+            var solution = workspace.CurrentSolution;
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "test").ConfigureAwait(false);
+            Assert.Empty(declarations);
+        }
+
+        [Theory]
+        [InlineData("Te$tCa$e")]
+        [InlineData("テストケース")]
+        [InlineData("Test_Case")]
+        [InlineData("Test123")]
+        public async Task FindSourceDeclarationsWithPatternAsync_SpecialCharacters(string pattern)
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClass, out var solution);
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, pattern).ConfigureAwait(false);
+            Assert.Empty(declarations); // Ensure no false matches for unexpected patterns
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_LargeSolution()
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.LargeSolution, out var solution);
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "TestCase").ConfigureAwait(false);
+            Assert.True(declarations.Count() > 0); // Ensure declarations are found in large solutions
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_ComplexPredicate()
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClassWithSingleMethod, out var solution);
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(
+                solution,
+                pattern => pattern.StartsWith("Test") && pattern.EndsWith("Method")).ConfigureAwait(false);
+
+            Assert.All(declarations, d => Assert.Contains("TestMethod", d.Name));
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_ProjectWithErrors()
+        {
+            var source = @"
+            public class MyClass
+            {
+                public int MyMethod()
+                {
+                    // Missing return statement
+                }
+            }";
+
+            using var workspace = CreateWorkspaceWithSource(SolutionKind.SingleClass, source, out var project);
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(project, "MyClass").ConfigureAwait(false);
+
+            Assert.Single(declarations);
+            Assert.Equal("MyClass", declarations.First().Name);
+        }
+
+        // Second time generation for FindSourceDeclarationsWithPatternAsync_ProjectWithErrors
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_ProjectWithErrors_2()
+        {
+            var source = @"
+        public class MyClass
+        {
+            public int MyMethod()
+            {
+                // Missing return statement
+            }
+        }";
+
+            using var workspace = new AdhocWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var documentId = DocumentId.CreateNewId(projectId);
+
+            // Create a solution with a single project and add the source code
+            var solution = workspace.CurrentSolution
+                .AddProject(projectId, "TestProject", "TestAssembly", LanguageNames.CSharp)
+                .AddDocument(documentId, "TestDocument.cs", SourceText.From(source));
+
+            var project = solution.GetProject(projectId);
+
+            // Run the symbol finder
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(project, "MyClass").ConfigureAwait(false);
+
+            // Verify results
+            Assert.Single(declarations);
+            Assert.Equal("MyClass", declarations.First().Name);
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_CrossLanguageProjects()
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.MultipleLanguages, out var solution);
+
+            var declarationsCSharp = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(
+                solution.GetProjectsByLanguage(LanguageNames.CSharp).First(), "Test").ConfigureAwait(false);
+            Assert.NotEmpty(declarationsCSharp);
+
+            var declarationsVB = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(
+                solution.GetProjectsByLanguage(LanguageNames.VisualBasic).First(), "Test").ConfigureAwait(false);
+            Assert.NotEmpty(declarationsVB);
+        }
+
+        [Theory]
+        [InlineData(SymbolFilter.Type)]
+        [InlineData(SymbolFilter.Member)]
+        [InlineData(SymbolFilter.All)]
+        public async Task FindSourceDeclarationsWithPatternAsync_SymbolFilter(SymbolFilter filter)
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClassWithSingleMethod, out var solution);
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "Test", filter).ConfigureAwait(false);
+            Assert.NotEmpty(declarations);
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_Cancellation()
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClass, out var solution);
+
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            {
+                await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "Test", SymbolFilter.All, cts.Token).ConfigureAwait(false);
+            });
+        }
+
+        // ************** Sonnet 3.5 generated tests **************
+        [Theory]
+        [InlineData(SymbolFilter.Type, new[] { "TestCases", "TestCases.TestCase", "TestCases.TestCase.InnerTestCase" })]
+        [InlineData(SymbolFilter.Member, new[] { "TestCases.TestCase.Test(string[])", "TestCases.TestCase.TestProperty", "TestCases.TestCase.TestField" })]
+        [InlineData(SymbolFilter.Namespace, new[] { "TestCases" })]
+        public async Task FindSourceDeclarationsWithPatternAsync_Solution_SymbolFilterTest(SymbolFilter filter, string[] expectedResults)
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClassWithAll, out var solution);
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "test", filter).ConfigureAwait(false);
+            Verify(SolutionKind.SingleClassWithAll, declarations, expectedResults);
+        }
+
+        [Theory]
+        [InlineData("test*", new string[0])] // Wildcard
+        [InlineData("test?", new string[0])] // Single char wildcard
+        [InlineData("test[c]ase", new string[0])] // Character class
+        [InlineData(@"test\case", new string[0])] // Escaped character
+        public async Task FindSourceDeclarationsWithPatternAsync_Solution_SpecialCharactersTest(string pattern, string[] expectedResults)
+        {
+            using var workspace = CreateWorkspaceWithSolution(SolutionKind.SingleClass, out var solution);
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, pattern).ConfigureAwait(false);
+            Verify(SolutionKind.SingleClass, declarations, expectedResults);
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_Solution_PartialClassTest()
+        {
+            var source1 = @"
+partial class PartialType {
+    public void Method1() { }
+}";
+            var source2 = @"
+partial class PartialType {
+    public void Method2() { }
+}";
+
+            using var workspace = CreateWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var solution = workspace.CurrentSolution
+                .AddProject(projectId, "TestProject", "TestProject", LanguageNames.CSharp)
+                .AddMetadataReference(projectId, MscorlibRef)
+                .AddDocument(DocumentId.CreateNewId(projectId), "File1.cs", source1)
+                .AddDocument(DocumentId.CreateNewId(projectId), "File2.cs", source2);
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "partial").ConfigureAwait(false);
+            Assert.Single(declarations.Where(d => d.Name == "PartialType"));
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_Solution_GeneratedCodeTest()
+        {
+            using var workspace = CreateWorkspace();
+            var projectId = ProjectId.CreateNewId();
+            var solution = workspace.CurrentSolution
+                .AddProject(projectId, "TestProject", "TestProject", LanguageNames.CSharp)
+                .AddMetadataReference(projectId, MscorlibRef);
+
+            var sourceText = SourceText.From(@"
+[System.CodeDom.Compiler.GeneratedCode(""Tool"", ""1.0"")]
+class GeneratedClass {
+    public void GeneratedMethod() { }
+}");
+
+            solution = solution.AddDocument(DocumentId.CreateNewId(projectId), "Generated.cs", sourceText);
+
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "generated").ConfigureAwait(false);
+            Assert.Equal(2, declarations.Count()); // Should find both class and method
+        }
+
+        [Fact]
+        public async Task FindSourceDeclarationsWithPatternAsync_EmptySolution()
+        {
+            using var workspace = CreateWorkspace();
+            var solution = workspace.CurrentSolution;
+            var declarations = await SymbolFinder.FindSourceDeclarationsWithPatternAsync(solution, "test").ConfigureAwait(false);
+            Assert.Empty(declarations);
+        }
     }
 }
