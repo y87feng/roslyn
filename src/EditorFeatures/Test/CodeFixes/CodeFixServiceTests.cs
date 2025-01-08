@@ -34,6 +34,297 @@ public class CodeFixServiceTests
 {
     private static readonly TestComposition s_compositionWithMockDiagnosticUpdateSourceRegistrationService = EditorTestCompositions.EditorFeatures;
 
+    // ***************** GPT-4o Generated Tests ********************
+    [Fact]
+    public async Task TestStreamFixesAsync_NoDiagnostics()
+    {
+        var codeFix = new MockFixer();
+
+        // Setup with no diagnostics
+        var analyzerReference = new MockAnalyzerReference(
+            codeFix,
+            ImmutableArray<DiagnosticAnalyzer>.Empty);
+
+        var tuple = ServiceSetup(codeFix);
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = await tuple.codeFixService.StreamFixesAsync(document, TextSpan.FromBounds(0, 0), new DefaultCodeActionRequestPriorityProvider(), CancellationToken.None).ToListAsync();
+
+        // Note: `results` shouldn't be used like this, it should use codeFix.ContextDiagnosticsCount instead.
+        Assert.Empty(results); // No diagnostics, no fixes
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_MixedDiagnostics()
+    {
+        var codeFix = new MockFixer("Test Fix");
+
+        // Diagnostics: some fixable, some not fixable
+        var analyzerReference = new MockAnalyzerReference(
+            codeFix,
+            ImmutableArray.Create<DiagnosticAnalyzer>(
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("FixableID", "Category1"),
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("NonFixableID", "Category2")));
+
+        var tuple = ServiceSetup(codeFix);
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = await tuple.codeFixService.StreamFixesAsync(document, TextSpan.FromBounds(0, 0), new DefaultCodeActionRequestPriorityProvider(), CancellationToken.None).ToListAsync();
+
+        // Assert
+        Assert.Single(results); // Only one diagnostic is fixable
+        Assert.Equal("FixableID", results.First().FirstDiagnostic.Id);
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_SuppressionFixes()
+    {
+        var codeFix = new MockFixer();
+
+        // Setup suppression diagnostics
+        var analyzerReference = new MockAnalyzerReference(
+            codeFix,
+            ImmutableArray.Create<DiagnosticAnalyzer>(
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("SuppressibleID", "Category1")));
+
+        var tuple = ServiceSetup(codeFix, includeConfigurationFixProviders: true);
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = await tuple.codeFixService.StreamFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            new DefaultCodeActionRequestPriorityProvider(CodeActionRequestPriority.Lowest),
+            CancellationToken.None);
+
+        // Assert
+        Assert.NotEmpty(results); // Suppression fixes should exist
+        Assert.Contains(results, collection => collection.Fixes.Any(f => f.Action.Title.Contains("suppress", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_DuplicateDiagnostics()
+    {
+        var codeFix = new MockFixer();
+
+        // Duplicate diagnostics for the same issue
+        var analyzerReference = new MockAnalyzerReference(
+            codeFix,
+            ImmutableArray.Create<DiagnosticAnalyzer>(
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("DuplicateID", "Category1"),
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("DuplicateID", "Category1")));
+
+        var tuple = ServiceSetup(codeFix);
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = tuple.codeFixService.StreamFixesAsync(document, TextSpan.FromBounds(0, 0), new DefaultCodeActionRequestPriorityProvider(), CancellationToken.None).ToListAsync();
+
+        // Assert
+        Assert.Single(results); // Deduplicated diagnostics
+        Assert.Equal("DuplicateID", results.First().FirstDiagnostic.Id);
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_ExceptionInFixerRegistration()
+    {
+        var faultyFixer = new MockFixer("Faulty Fix")
+        {
+            ThrowExceptionInRegisterCodeFixes = true
+        };
+
+        var analyzerReference = new MockAnalyzerReference(
+            faultyFixer,
+            ImmutableArray.Create<DiagnosticAnalyzer>(
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("FaultyFixableID", "Category1")));
+
+        var tuple = ServiceSetup(faultyFixer);
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = await tuple.codeFixService.StreamFixesAsync(document, TextSpan.FromBounds(0, 0), new DefaultCodeActionRequestPriorityProvider(), CancellationToken.None).ToListAsync();
+
+        // Assert
+        Assert.Empty(results); // Fixer exception should not block the process
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_InteractiveWorkspace()
+    {
+        // Arrange
+        var workspace = new AdhocWorkspace(WorkspaceKind.Interactive);
+        var project = workspace.AddProject("TestProject", LanguageNames.CSharp);
+        var document = workspace.AddDocument(project.Id, "TestDocument", SourceText.From("class Test {}"));
+
+        var codeFix = new MockFixer();
+
+        var analyzerReference = new MockAnalyzerReference(
+            codeFix,
+            ImmutableArray.Create<DiagnosticAnalyzer>(
+                new MockAnalyzerReference.MockDiagnosticAnalyzer("InteractiveID", "Category1")));
+
+        var tuple = ServiceSetup(codeFix);
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var testDocument, out var extensionManager, analyzerReference);
+
+        // Act
+        var results = tuple.codeFixService.StreamFixesAsync(testDocument, TextSpan.FromBounds(0, 0), new DefaultCodeActionRequestPriorityProvider(), CancellationToken.None).ToListAsync();
+
+        // Assert
+        Assert.Empty(results); // Interactive mode should exclude non-applicable fixers
+    }
+
+    // ***************** Sonnet 3.5 Generated Tests ********************
+    [Fact]
+    public async Task TestStreamFixesAsync_NoDiagnostics()
+    {
+        var tuple = ServiceSetup(new MockFixer());
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager);
+
+        var fixes = await tuple.codeFixService.GetFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            CancellationToken.None);
+
+        Assert.Empty(fixes);
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_WithCancellation()
+    {
+        var tuple = ServiceSetup(new MockFixer());
+        using var workspace = tuple.workspace;
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await tuple.codeFixService.GetFixesAsync(
+                document,
+                TextSpan.FromBounds(0, 0),
+                cts.Token);
+        });
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_MultipleDiagnosticsSameSpan()
+    {
+        // Create analyzer that reports multiple diagnostics at same location
+        var diagnosticIds = ImmutableArray.Create("ID1", "ID2");
+        var analyzer = new MockAnalyzerReference.MockDiagnosticAnalyzer(diagnosticIds);
+
+        // Create fixer that can fix all diagnostics
+        //var fixer = new MockFixer(diagnosticIds); // Note: Syntax Error
+        var fixer = new MockFixer();
+        var tuple = ServiceSetup(fixer);
+        using var workspace = tuple.workspace;
+
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager,
+            new MockAnalyzerReference(fixer, ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)));
+
+        var fixes = await tuple.codeFixService.GetFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            CancellationToken.None);
+
+        Assert.Single(fixes);
+        // Note: `fixes` shouldn't be used like this, it should use codeFix.ContextDiagnosticsCount instead.
+        Assert.Equal(2, fixes[0].Fixes.Length); // One fix per diagnostic
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_PrioritizeProjectFixersOverWorkspaceFixers()
+    {
+        var diagnosticId = "ID1";
+        var analyzer = new MockAnalyzerReference.MockDiagnosticAnalyzer(ImmutableArray.Create(diagnosticId));
+
+        // Create both project and workspace fixers
+        var projectFixer = new MockFixer("Project Fix");
+        var workspaceFixer = new MockFixer("Workspace Fix");
+
+        var tuple = ServiceSetup([projectFixer, workspaceFixer]);
+        using var workspace = tuple.workspace;
+
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager,
+            new MockAnalyzerReference(projectFixer, ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)));
+
+        var fixes = await tuple.codeFixService.GetFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            new DefaultCodeActionRequestPriorityProvider(),
+            CancellationToken.None);
+
+        // Should only see project fixer's fix
+        Assert.Single(fixes);
+        Assert.Equal("Project Fix", fixes[0].Fixes.Single().Action.Title);
+    }
+
+    [Theory]
+    [InlineData(CodeActionRequestPriority.Default)]
+    [InlineData(CodeActionRequestPriority.Low)]
+    public async Task TestStreamFixesAsync_RespectsPriority(CodeActionRequestPriority priority)
+    {
+        var diagnosticId = "ID1";
+        var analyzer = new MockAnalyzerReference.MockDiagnosticAnalyzer(ImmutableArray.Create(diagnosticId));
+        var fixer = new MockFixer();
+
+        var tuple = ServiceSetup(fixer);
+        using var workspace = tuple.workspace;
+
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager,
+            new MockAnalyzerReference(fixer, ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)));
+
+        var fixes = await tuple.codeFixService.GetFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            new DefaultCodeActionRequestPriorityProvider(priority),
+            CancellationToken.None);
+
+        if (priority == CodeActionRequestPriority.Low)
+        {
+            Assert.Empty(fixes); // Low priority should not run normal fixers
+        }
+        else
+        {
+            Assert.Single(fixes); // Default priority should run normal fixers
+        }
+    }
+
+    [Fact]
+    public async Task TestStreamFixesAsync_ConfigurationFixesWhenLowestPriority()
+    {
+        var diagnosticId = "ID1";
+        var analyzer = new MockAnalyzerReference.MockDiagnosticAnalyzer(ImmutableArray.Create(diagnosticId));
+        var fixer = new MockFixer();
+
+        // Setup with configuration providers enabled
+        var tuple = ServiceSetup(fixer, includeConfigurationFixProviders: true);
+        using var workspace = tuple.workspace;
+
+        GetDocumentAndExtensionManager(tuple.analyzerService, workspace, out var document, out var extensionManager,
+            new MockAnalyzerReference(fixer, ImmutableArray.Create<DiagnosticAnalyzer>(analyzer)));
+
+        var fixes = await tuple.codeFixService.GetFixesAsync(
+            document,
+            TextSpan.FromBounds(0, 0),
+            new DefaultCodeActionRequestPriorityProvider(CodeActionRequestPriority.Lowest),
+            CancellationToken.None);
+
+        // Should see configuration fixes even though regular fixes are disabled for Lowest priority
+        Assert.NotEmpty(fixes);
+    }
+
+    // **************************************************************
+
     [Fact]
     public async Task TestGetFirstDiagnosticWithFixAsync()
     {
