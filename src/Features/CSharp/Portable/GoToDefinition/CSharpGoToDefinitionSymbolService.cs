@@ -18,8 +18,8 @@ using Microsoft.CodeAnalysis.Shared.Extensions;
 namespace Microsoft.CodeAnalysis.CSharp.GoToDefinition;
 
 [ExportLanguageService(typeof(IGoToDefinitionSymbolService), LanguageNames.CSharp), Shared]
-[method: ImportingConstructor]
-[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
+//[method: ImportingConstructor]
+//[method: Obsolete(MefConstruction.ImportingConstructorMessage, error: true)]
 internal sealed class CSharpGoToDefinitionSymbolService() : AbstractGoToDefinitionSymbolService
 {
     protected override Task<ISymbol> FindRelatedExplicitlyDeclaredSymbolAsync(Project project, ISymbol symbol, CancellationToken cancellationToken)

@@ -24,7 +24,7 @@ namespace Microsoft.CodeAnalysis.Editor.CSharp.UnitTests.InlineRename
     [UseExportProvider]
     public class CSharpEditorInlineRenameServiceTests
     {
-        // ORIGINAL GENERATED CODE by GPT4o
+        // ORIGINAL GENERATED CODE by 
         //private async Task<(TestWorkspace workspace, CSharpEditorInlineRenameService service, Document document)> CreateTestEnvironmentAsync(string code)
         //{
         //    var composition = TestComposition.Empty

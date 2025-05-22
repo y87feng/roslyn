@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
+using Roslyn.Test.Utilities;
 using Xunit;
 
 namespace Microsoft.CodeAnalysis.UnitTests
@@ -52,6 +53,71 @@ namespace Microsoft.CodeAnalysis.UnitTests
         {
             var info = SolutionInfo.Create(SolutionId.CreateNewId(), VersionStamp.Default, filePath: path);
             Assert.Equal(path, info.FilePath);
+        }
+
+        [Fact]
+        public void Create_WithNullId_ThrowsArgumentNullException()
+        {
+            var version = VersionStamp.Default;
+            Assert.Throws<ArgumentNullException>(() => SolutionInfo.Create(null, version));
+        }
+
+        [Fact]
+        public void Create_WithValidParameters_CreatesSolutionInfo()
+        {
+            var solutionId = SolutionId.CreateNewId();
+            var version = VersionStamp.Default;
+            var projectInfo = ProjectInfo.Create(ProjectId.CreateNewId(), version, "proj", "assembly", "C#");
+            var analyzerReference = new TestAnalyzerReference();
+
+            var solutionInfo = SolutionInfo.Create(solutionId, version, "path", new[] { projectInfo }, new[] { analyzerReference });
+
+            Assert.Equal(solutionId, solutionInfo.Id);
+            Assert.Equal(version, solutionInfo.Version);
+            Assert.Equal("path", solutionInfo.FilePath);
+            Assert.Single(solutionInfo.Projects);
+            Assert.Single(solutionInfo.AnalyzerReferences);
+        }
+
+        [Fact]
+        public void Create_WithNullFilePath_CreatesSolutionInfo()
+        {
+            var solutionId = SolutionId.CreateNewId();
+            var version = VersionStamp.Default;
+
+            var solutionInfo = SolutionInfo.Create(solutionId, version);
+
+            Assert.Equal(solutionId, solutionInfo.Id);
+            Assert.Equal(version, solutionInfo.Version);
+            Assert.Null(solutionInfo.FilePath);
+            Assert.Empty(solutionInfo.Projects);
+            Assert.Empty(solutionInfo.AnalyzerReferences);
+        }
+
+        [Fact]
+        public void Create_WithNullProjects_CreatesSolutionInfo()
+        {
+            var solutionId = SolutionId.CreateNewId();
+            var version = VersionStamp.Default;
+
+            var solutionInfo = SolutionInfo.Create(solutionId, version, projects: null);
+
+            Assert.Equal(solutionId, solutionInfo.Id);
+            Assert.Equal(version, solutionInfo.Version);
+            Assert.Empty(solutionInfo.Projects);
+        }
+
+        [Fact]
+        public void Create_WithNullAnalyzerReferences_CreatesSolutionInfo()
+        {
+            var solutionId = SolutionId.CreateNewId();
+            var version = VersionStamp.Default;
+
+            var solutionInfo = SolutionInfo.Create(solutionId, version, analyzerReferences: null);
+
+            Assert.Equal(solutionId, solutionInfo.Id);
+            Assert.Equal(version, solutionInfo.Version);
+            Assert.Empty(solutionInfo.AnalyzerReferences);
         }
     }
 }
